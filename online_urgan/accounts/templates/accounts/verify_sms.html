@@ -1,0 +1,27 @@
+{% extends 'accounts/base.html' %}
+{% block title %}Telefonni tasdiqlash{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-md py-10">
+    <div class="glass rounded-[30px] p-7 sm:p-8 text-center">
+        <div class="mb-6">
+            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-200">Tasdiqlash</p>
+            <h3 class="mt-3 text-3xl font-black text-white">SMS Kodni kiriting</h3>
+        </div>
+
+        <p class="mb-6 text-sm text-slate-300">Telefon raqamingizga tasdiqlash kodi yuborildi. (Terminalni tekshiring)</p>
+
+        {% if error %}
+            <div class="mb-4 rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" class="space-y-4">
+            {% csrf_token %}
+            <div>
+                <input type="text" name="code" class="w-32 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-center text-3xl tracking-[0.35em] text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/80" placeholder="----" maxlength="4" required>
+            </div>
+            <button type="submit" class="w-full rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-4 py-3 font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:opacity-95">Tasdiqlash</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

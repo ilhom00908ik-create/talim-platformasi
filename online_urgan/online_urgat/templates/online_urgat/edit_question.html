@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Savolni tahrirlash</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background:
+                radial-gradient(circle at top left, rgba(34,211,238,0.18), transparent 28%),
+                radial-gradient(circle at bottom right, rgba(168,85,247,0.12), transparent 26%),
+                linear-gradient(135deg, #020817 0%, #0f172a 45%, #111827 100%);
+        }
+        .glass {
+            background: rgba(15, 23, 42, 0.45);
+            border: 1px solid rgba(255,255,255,0.12);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            box-shadow: 0 25px 50px rgba(15, 23, 42, 0.35);
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white">
+<div class="mx-auto max-w-4xl px-4 py-10">
+    <div class="glass rounded-[30px] p-6 sm:p-8">
+        <div class="mb-6 flex items-center justify-between gap-3">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-200">Savol</p>
+                <h1 class="mt-2 text-3xl font-black">{{ test.title }}</h1>
+            </div>
+            <a href="{% url 'online_urgat:edit_test' test.id %}" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-white/10">Orqaga</a>
+        </div>
+
+        <form method="post" enctype="multipart/form-data" class="space-y-5">
+            {% csrf_token %}
+            <div>
+                <label class="mb-2 block text-sm font-medium text-slate-200">Savol matni</label>
+                {{ form.question_text }}
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-200">A varianti</label>
+                    {{ form.option_a }}
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-200">B varianti</label>
+                    {{ form.option_b }}
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-200">C varianti</label>
+                    {{ form.option_c }}
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-200">D varianti</label>
+                    {{ form.option_d }}
+                </div>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-200">To'g'ri javob</label>
+                    {{ form.correct_option }}
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-200">Rasm</label>
+                    {{ form.image }}
+                </div>
+            </div>
+
+            <div>
+                <label class="mb-2 block text-sm font-medium text-slate-200">PDF material</label>
+                {{ form.resource_pdf }}
+            </div>
+
+            {% if form.errors %}
+                <div class="rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">
+                    {{ form.errors }}
+                </div>
+            {% endif %}
+
+            <button type="submit" class="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 font-bold text-white shadow-lg shadow-cyan-500/20 hover:opacity-95">
+                O'zgarishlarni saqlash
+            </button>
+        </form>
+    </div>
+</div>
+</body>
+</html>

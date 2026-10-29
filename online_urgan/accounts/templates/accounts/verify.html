@@ -1,0 +1,28 @@
+{% extends 'accounts/base.html' %}
+{% block title %}SMS Tasdiqlash{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-md py-10">
+    <div class="glass rounded-[30px] p-7 sm:p-8 text-center">
+        <div class="mb-6">
+            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-200">Tasdiqlash</p>
+            <h2 class="mt-3 text-3xl font-black text-white">Telefonni tasdiqlash</h2>
+        </div>
+
+        <p class="mb-6 text-sm text-slate-300">Telefon raqamingizga yuborilgan 4 xonali kodni kiriting.</p>
+
+        <form method="POST" action="{% url 'verify_sms' %}" class="space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="phone_number" value="{{ phone_number }}">
+
+            <div>
+                <input type="text" name="code" maxlength="4" placeholder="0000" required class="mx-auto w-32 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-center text-3xl tracking-[0.35em] text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/80">
+            </div>
+
+            <button type="submit" class="w-full rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-4 py-3 font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:opacity-95">
+                Profilni tasdiqlash
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

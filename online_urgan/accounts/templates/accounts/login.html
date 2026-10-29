@@ -1,0 +1,48 @@
+{% extends 'accounts/base.html' %}
+{% block title %}Tizimga kirish - Online Urgan{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-md py-10">
+    <div class="glass rounded-[30px] p-7 sm:p-8">
+        <div class="mb-6 text-center">
+            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-200">Kabinet</p>
+            <h2 class="mt-3 text-3xl font-black text-white">Tizimga kirish</h2>
+        </div>
+
+        {% if error %}
+            <div class="mb-4 rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" class="space-y-4">
+            {% csrf_token %}
+
+            <div>
+                <label class="mb-2 block text-sm font-medium text-slate-200">Foydalanuvchi nomi</label>
+                <input type="text" name="username" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/80" placeholder="Username" required>
+            </div>
+
+            <div>
+                <label class="mb-2 block text-sm font-medium text-slate-200">Parol</label>
+                <input type="password" name="password" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/80" placeholder="********" required>
+            </div>
+
+            <div>
+                <label class="mb-2 block text-sm font-medium text-slate-200">Maxfiy kalit (Device Key)</label>
+                <input type="text" name="device_key" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/80" placeholder="Ro'yxatdan o'tgan maxfiy kalitingiz" required>
+                <p class="mt-2 text-xs text-slate-400">Ro&apos;yxatdan o&apos;tishda kiritgan maxfiy kalitingizni yozing.</p>
+            </div>
+
+            <button type="submit" class="w-full rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 font-bold text-white shadow-lg shadow-cyan-500/20 transition hover:opacity-95">Kirish</button>
+        </form>
+
+        <div class="mt-5 space-y-2 text-center text-sm text-slate-300">
+            <div>
+                <a href="{% url 'register' %}" class="text-cyan-200 hover:text-cyan-100">Akkauntingiz yo&apos;qmi? Ro&apos;yxatdan o&apos;tish</a>
+            </div>
+            <div>
+                <a href="{% url 'forgot_password' %}" class="text-slate-400 hover:text-slate-200">Maxfiy kalit yoki parolni unutdingizmi?</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

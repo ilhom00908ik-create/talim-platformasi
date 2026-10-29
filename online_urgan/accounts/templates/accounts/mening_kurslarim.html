@@ -1,0 +1,73 @@
+{% extends 'accounts/base.html' %}
+{% block title %}Mening kurslarim - MathPlatform{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="glass rounded-[28px] p-6 sm:p-8">
+        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+                <h2 class="text-3xl font-black text-white">🚀 Virtual sinfxona va o'quv markazingiz</h2>
+                <p class="mt-2 max-w-3xl text-slate-300">
+                    Sotib olgan kurslaringizni o'rganing, jonli darslarga qo'shiling, ustozingiz bilan chatda muloqot qiling va uyga vazifalaringizni topshiring.
+                </p>
+            </div>
+            <span class="inline-flex rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1.5 text-sm font-semibold text-rose-100">Status: Faol obuna</span>
+        </div>
+    </div>
+
+    <h4 class="text-2xl font-bold text-white">Siz sotib olgan kurslar:</h4>
+
+    <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <article class="glass-soft rounded-[26px] p-5">
+            <div class="flex items-center justify-between">
+                <span class="inline-flex rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-200">Python</span>
+                <span class="text-2xl">🐍</span>
+            </div>
+            <h5 class="mt-4 text-2xl font-bold text-amber-200">Python va Django</h5>
+            <p class="mt-3 text-sm leading-6 text-slate-300">
+                Ustoz: <strong class="text-white">Ilhomjon</strong><br>
+                Holat: Davom etmoqda
+            </p>
+            <button class="mt-5 w-full rounded-xl bg-gradient-to-r from-rose-500 to-red-500 px-4 py-2.5 font-semibold text-white shadow-lg shadow-rose-500/20" onclick="confirmLiveJoin('Python va Django')">
+                🔴 Jonli darsga qo'shilish
+            </button>
+        </article>
+
+        <article class="glass-soft rounded-[26px] p-5">
+            <div class="flex items-center justify-between">
+                <span class="inline-flex rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200">Matematika</span>
+                <span class="text-2xl">📐</span>
+            </div>
+            <h5 class="mt-4 text-2xl font-bold text-cyan-200">Oliy matematika</h5>
+            <p class="mt-3 text-sm leading-6 text-slate-300">
+                Ustoz: <strong class="text-white">Rustambek</strong><br>
+                Holat: Yangi dars boshlandi
+            </p>
+            <button class="mt-5 w-full rounded-xl bg-gradient-to-r from-rose-500 to-red-500 px-4 py-2.5 font-semibold text-white shadow-lg shadow-rose-500/20" onclick="confirmLiveJoin('Oliy matematika')">
+                🔴 Jonli darsga qo'shilish
+            </button>
+        </article>
+    </div>
+
+    <div class="glass-soft rounded-[28px] p-5 sm:p-6">
+        <h5 class="text-xl font-bold text-rose-200">💡 Dars muhiti imkoniyatlari:</h5>
+        <ul class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4 text-sm text-slate-200">
+            <li class="rounded-2xl border border-white/10 bg-white/5 p-3">💬 <strong>Ustoz bilan chat:</strong> Savollaringizni yozib qoldiring</li>
+            <li class="rounded-2xl border border-white/10 bg-white/5 p-3">🎙️ <strong>Ovozli muloqot:</strong> Jonli darsda gaplashib savol bering</li>
+            <li class="rounded-2xl border border-white/10 bg-white/5 p-3">📂 <strong>Vazifa yuklash:</strong> Uyga vaziralarni fayl ko'rinishida yuboring</li>
+            <li class="rounded-2xl border border-white/10 bg-white/5 p-3">✅ <strong>Tekshiruv:</strong> Ustozning bahosi va izohlarini ko'ring</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+    function confirmLiveJoin(courseName) {
+        let userConfirmed = confirm(`"${courseName}" kursi bo'yicha jonli darsga qo'shilmoqchimisiz?`);
+        if (userConfirmed) {
+            alert("Jonli dars oynasiga yo'naltirilyapsiz... (Tez orada ulanadi)");
+        } else {
+            alert("Jonli darsga qo'shilish bekor qilindi.");
+        }
+    }
+</script>
+{% endblock %}

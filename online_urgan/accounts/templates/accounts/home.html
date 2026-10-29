@@ -1,0 +1,293 @@
+{% extends 'accounts/base.html' %}
+{% block title %}Bosh sahifa - MathPlatform{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <section class="glass overflow-hidden rounded-[30px] p-6 sm:p-8 lg:p-10">
+        <div class="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+            <div>
+                <span class="inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-cyan-200">Zamonaviy o'qitish</span>
+                <h1 class="mt-5 text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">
+                    Bilimni zamonaviy tarzda, tezroq va chiroyliroq o'rganing.
+                </h1>
+                <p class="mt-5 max-w-xl text-base text-slate-300 sm:text-lg">
+                    Interaktiv testlar, eksperta o'qituvchilar, jonli darslar va maqsadli rivojlanish — barchasi bir platformada.
+                </p>
+                <div class="mt-6 flex flex-col gap-3 sm:flex-row">
+                    <a href="{% url 'register' %}" class="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-3 font-bold text-white shadow-lg shadow-cyan-500/20 transition hover:opacity-95">Boshlash</a>
+                    <a href="{% url 'kurslar' %}" class="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-5 py-3 font-bold text-white transition hover:bg-white/10">Kurslarni ko'rish</a>
+                </div>
+                <div class="mt-6 flex flex-wrap gap-3 text-xs text-slate-300">
+                    <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">✅ 1K+ o'quvchi</span>
+                    <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">✅ 40+ kurs</span>
+                    <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">✅ Live darslar</span>
+                </div>
+            </div>
+
+            <div class="glass-soft rounded-[28px] p-5 sm:p-6">
+                <div class="rounded-[24px] border border-white/10 bg-slate-950/30 p-4">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">Bugungi natija</span>
+                        <span class="inline-flex rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-200">+28%</span>
+                    </div>
+                    <div class="mt-5 space-y-4">
+                        <div>
+                            <div class="flex items-center justify-between text-sm text-slate-300">
+                                <span>O'quvchilar faoliyati</span>
+                                <span class="font-semibold text-cyan-200">84%</span>
+                            </div>
+                            <div class="mt-2 h-2.5 rounded-full bg-white/5">
+                                <div class="h-2.5 w-[84%] rounded-full bg-gradient-to-r from-cyan-500 to-violet-500"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between text-sm text-slate-300">
+                                <span>Natija o'sishi</span>
+                                <span class="font-semibold text-violet-200">92%</span>
+                            </div>
+                            <div class="mt-2 h-2.5 rounded-full bg-white/5">
+                                <div class="h-2.5 w-[92%] rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 grid gap-3 sm:grid-cols-3">
+                        <div class="rounded-2xl border border-white/10 bg-white/5 p-3 text-left">
+                            <div class="text-[10px] uppercase tracking-[0.22em] text-slate-400">Testlar</div>
+                            <div class="mt-2 text-2xl font-black text-white">{{ tests|length }}</div>
+                        </div>
+                        <div class="rounded-2xl border border-white/10 bg-white/5 p-3 text-left">
+                            <div class="text-[10px] uppercase tracking-[0.22em] text-slate-400">Live</div>
+                            <div class="mt-2 text-2xl font-black text-white">{{ live_lessons|length }}</div>
+                        </div>
+                        <div class="rounded-2xl border border-white/10 bg-white/5 p-3 text-left">
+                            <div class="text-[10px] uppercase tracking-[0.22em] text-slate-400">Foiz</div>
+                            <div class="mt-2 text-2xl font-black text-emerald-300">{{ stats.average_percentage }}%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="grid gap-4 md:grid-cols-3">
+        <div class="glass-soft rounded-[26px] p-5">
+            <div class="text-3xl">🎯</div>
+            <h3 class="mt-4 text-xl font-bold text-white">Maqsadli ta'lim</h3>
+            <p class="mt-2 text-sm leading-6 text-slate-300">Har bir dars va test o'quvchining real natijasi uchun ishlab chiqilgan.</p>
+        </div>
+        <div class="glass-soft rounded-[26px] p-5">
+            <div class="text-3xl">📚</div>
+            <h3 class="mt-4 text-xl font-bold text-white">Interaktiv materiallar</h3>
+            <p class="mt-2 text-sm leading-6 text-slate-300">Rasm, PDF va testlar orqali o'rganish yanada samarali va qulay.</p>
+        </div>
+        <div class="glass-soft rounded-[26px] p-5">
+            <div class="text-3xl">🚀</div>
+            <h3 class="mt-4 text-xl font-bold text-white">Tez rivojlanish</h3>
+            <p class="mt-2 text-sm leading-6 text-slate-300">Realtime natijalar, videodarslar va progress kuzatuvi bilan ko'proq o'sing.</p>
+        </div>
+    </section>
+
+    <section class="space-y-6">
+        <div class="flex items-center justify-between gap-3">
+            <h2 class="text-2xl font-bold text-white">O'quvchilar fikri</h2>
+            <span class="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-200">4.9 / 5</span>
+        </div>
+
+        <div class="grid gap-5 md:grid-cols-3">
+            <article class="glass-soft rounded-[26px] p-5">
+                <div class="mb-4 flex items-center gap-1 text-yellow-300">★★★★★</div>
+                <p class="text-sm leading-6 text-slate-300">“Platforma o'rganishni ancha osonlashtirdi. Testlar ham, live darslar ham juda qulay va chiroyli.”</p>
+                <div class="mt-5 border-t border-white/10 pt-4">
+                    <div class="font-semibold text-white">Nodira</div>
+                    <div class="text-xs text-slate-400">Frontend o'quvchisi</div>
+                </div>
+            </article>
+
+            <article class="glass-soft rounded-[26px] p-5">
+                <div class="mb-4 flex items-center gap-1 text-yellow-300">★★★★★</div>
+                <p class="text-sm leading-6 text-slate-300">“PDF va rasmli savollar juda foydali bo'ldi. O'qituvchilar bilan aloqamiz yanada mustahkam bo'ldi.”</p>
+                <div class="mt-5 border-t border-white/10 pt-4">
+                    <div class="font-semibold text-white">Sardor</div>
+                    <div class="text-xs text-slate-400">Backend o'quvchisi</div>
+                </div>
+            </article>
+
+            <article class="glass-soft rounded-[26px] p-5">
+                <div class="mb-4 flex items-center gap-1 text-yellow-300">★★★★★</div>
+                <p class="text-sm leading-6 text-slate-300">“Darslar, tugmalar, natijalar ko'rinishi – barchasi yuqori darajada tayyor. Hamma narsa qulay.”</p>
+                <div class="mt-5 border-t border-white/10 pt-4">
+                    <div class="font-semibold text-white">Madinabonu</div>
+                    <div class="text-xs text-slate-400">Matematika kursi</div>
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <section class="space-y-6">
+        <div class="flex items-center justify-between gap-3">
+            <h2 class="text-2xl font-bold text-white">Narxlar</h2>
+            <span class="rounded-full border border-violet-400/20 bg-violet-500/10 px-2.5 py-1 text-xs font-medium text-violet-200">Birinchi oy 30% chegirma</span>
+        </div>
+
+        <div class="grid gap-5 lg:grid-cols-3">
+            <article class="glass-soft rounded-[28px] p-5">
+                <div class="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Basic</div>
+                <div class="mt-4 text-4xl font-black text-white">Free</div>
+                <p class="mt-3 text-sm text-slate-300">Kichik ma’lumotlarga kirish va asosiy testlarni ko‘rish.</p>
+                <ul class="mt-5 space-y-2 text-sm text-slate-200">
+                    <li>✅ 2 ta kursga kirish</li>
+                    <li>✅ Boshqa asosiy testlar</li>
+                    <li>❌ Live darslar</li>
+                </ul>
+                <a href="{% url 'register' %}" class="mt-6 inline-flex w-full justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 font-semibold text-white hover:bg-white/10">Boshlash</a>
+            </article>
+
+            <article class="glass-soft rounded-[28px] border border-cyan-400/30 bg-cyan-500/5 p-5 shadow-lg shadow-cyan-500/10">
+                <div class="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-200">Pro</div>
+                <div class="mt-4 text-4xl font-black text-white">299K</div>
+                <p class="mt-3 text-sm text-slate-300">Har oy, barcha kurslar, live darslar va to'liq natijalar uchun.</p>
+                <ul class="mt-5 space-y-2 text-sm text-slate-200">
+                    <li>✅ Barcha kurslar</li>
+                    <li>✅ Live darslar</li>
+                    <li>✅ Natijalar va tarix</li>
+                </ul>
+                <a href="{% url 'register' %}" class="mt-6 inline-flex w-full justify-center rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2.5 font-semibold text-white shadow-lg shadow-cyan-500/20">Tanlash</a>
+            </article>
+
+            <article class="glass-soft rounded-[28px] p-5">
+                <div class="text-sm font-semibold uppercase tracking-[0.2em] text-violet-200">Team</div>
+                <div class="mt-4 text-4xl font-black text-white">799K</div>
+                <p class="mt-3 text-sm text-slate-300">Guruh uchun zamonaviy rahbarlik, monitoring va ko‘p foydalanuvchi rejasi.</p>
+                <ul class="mt-5 space-y-2 text-sm text-slate-200">
+                    <li>✅ Barcha Pro imkoniyatlar</li>
+                    <li>✅ Guruh menejeri</li>
+                    <li>✅ Maxsus nazorat paneli</li>
+                </ul>
+                <a href="{% url 'register' %}" class="mt-6 inline-flex w-full justify-center rounded-xl border border-violet-400/30 bg-violet-500/10 px-4 py-2.5 font-semibold text-violet-100 hover:bg-violet-500/20">Bog'lanish</a>
+            </article>
+        </div>
+    </section>
+
+    <section class="glass-soft rounded-[28px] p-6 sm:p-8">
+        <div class="flex flex-col gap-4 text-center lg:flex-row lg:items-center lg:justify-between lg:text-left">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-200">Ready?</p>
+                <h2 class="mt-2 text-3xl font-black text-white">Hozir qo'shiling va ta'limni boshlang.</h2>
+            </div>
+            <a href="{% url 'register' %}" class="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-3 font-bold text-white shadow-lg shadow-cyan-500/20 transition hover:opacity-95">Ro'yxatdan o'tish</a>
+        </div>
+    </section>
+
+    <section class="space-y-5">
+        <div class="flex items-center justify-between gap-3">
+            <h2 class="text-2xl font-bold text-white">Faol testlar</h2>
+            <span class="rounded-full border border-violet-400/20 bg-violet-500/10 px-2.5 py-1 text-xs font-medium text-violet-200">{{ tests|length }} ta</span>
+        </div>
+
+        {% if tests %}
+            <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {% for test in tests %}
+                    <article class="glass-soft group rounded-[26px] p-5 transition duration-300 hover:-translate-y-1 hover:border-cyan-400/30">
+                        <div class="flex items-start justify-between gap-3">
+                            <span class="inline-flex rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-200">{{ test.subject }}</span>
+                            {% if test.cover_image %}
+                                <img src="{{ test.cover_image.url }}" alt="{{ test.title }}" class="h-12 w-12 rounded-xl object-cover ring-2 ring-white/10">
+                            {% else %}
+                                <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500/30 to-violet-500/30 text-xl">📘</div>
+                            {% endif %}
+                        </div>
+                        <h3 class="mt-4 text-xl font-bold text-white">{{ test.title }}</h3>
+                        <p class="mt-2 text-sm text-slate-300">
+                            O'qituvchi: {{ test.teacher.get_full_name|default:test.teacher.username }}
+                        </p>
+                        <div class="mt-5 flex items-center justify-between text-sm text-slate-300">
+                            <span>{{ test.questions_count }} savol</span>
+                            <a href="{% url 'take_test' test.id %}" class="inline-flex rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:opacity-95">Testni boshlash</a>
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="glass-soft rounded-[24px] p-6 text-slate-300">Hozircha faol testlar mavjud emas.</div>
+        {% endif %}
+    </section>
+
+    <section class="space-y-5">
+        <div class="flex items-center justify-between gap-3">
+            <h2 class="text-2xl font-bold text-white">Jonli darslar</h2>
+            <span class="rounded-full border border-rose-400/20 bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-200">Live</span>
+        </div>
+
+        {% if live_lessons %}
+            <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {% for lesson in live_lessons %}
+                    <article class="glass-soft rounded-[26px] p-5">
+                        <div class="flex items-center justify-between">
+                            <span class="inline-flex rounded-full border border-rose-400/20 bg-rose-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-rose-200">🔴 Jonli</span>
+                            {% if lesson.stream_url %}<span class="text-xs text-slate-400">Online</span>{% endif %}
+                        </div>
+                        <h3 class="mt-4 text-xl font-bold text-white">{{ lesson.title }}</h3>
+                        <p class="mt-2 text-sm text-slate-300">{{ lesson.subject }}</p>
+                        <p class="mt-3 text-sm text-slate-400">O'qituvchi: {{ lesson.teacher.get_full_name|default:lesson.teacher.username }}</p>
+                        <a href="{% url 'online_urgat:join_live_lesson' lesson.id %}" class="mt-5 inline-flex rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-rose-500/20 transition hover:opacity-95">Darsxonaga qo'shilish</a>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="glass-soft rounded-[24px] p-6 text-slate-300">Hozircha jonli darslar mavjud emas.</div>
+        {% endif %}
+    </section>
+
+    {% if request.user.is_authenticated %}
+    <section class="space-y-5 rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-xl backdrop-blur-md sm:p-7">
+        <div class="flex items-center justify-between gap-3">
+            <h2 class="text-2xl font-bold text-white">Mening natijalarim</h2>
+            <a href="{% url 'test_history' %}" class="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-white/10">Barcha tarix</a>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-3">
+            <div class="glass-soft rounded-2xl p-4">
+                <div class="text-xs uppercase tracking-[0.2em] text-slate-400">Umumiy sinovlar</div>
+                <div class="mt-2 text-3xl font-black text-white">{{ stats.total_attempts }}</div>
+            </div>
+            <div class="glass-soft rounded-2xl p-4">
+                <div class="text-xs uppercase tracking-[0.2em] text-slate-400">Eng yaxshi ball</div>
+                <div class="mt-2 text-3xl font-black text-emerald-300">{{ stats.best_score }}</div>
+            </div>
+            <div class="glass-soft rounded-2xl p-4">
+                <div class="text-xs uppercase tracking-[0.2em] text-slate-400">O'rtacha foiz</div>
+                <div class="mt-2 text-3xl font-black text-cyan-300">{{ stats.average_percentage }}%</div>
+            </div>
+        </div>
+
+        {% if attempts %}
+            <div class="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/20">
+                <table class="min-w-full divide-y divide-white/10 text-left text-sm text-slate-200">
+                    <thead class="bg-white/5">
+                        <tr>
+                            <th class="px-4 py-3 font-medium text-slate-300">Test</th>
+                            <th class="px-4 py-3 font-medium text-slate-300">To'g'ri</th>
+                            <th class="px-4 py-3 font-medium text-slate-300">Foiz</th>
+                            <th class="px-4 py-3 font-medium text-slate-300">Sana</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/10">
+                        {% for attempt in attempts %}
+                            <tr class="hover:bg-white/5">
+                                <td class="px-4 py-3 text-white">{{ attempt.test.title }}</td>
+                                <td class="px-4 py-3">{{ attempt.correct_answers }}/{{ attempt.total_questions }}</td>
+                                <td class="px-4 py-3 text-cyan-200">{{ attempt.percentage }}%</td>
+                                <td class="px-4 py-3 text-slate-400">{{ attempt.submitted_at|date:'d.m.Y H:i' }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="glass-soft rounded-2xl p-4 text-slate-300">Hali hech qanday test natijasi yo'q.</div>
+        {% endif %}
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

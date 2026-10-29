@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Online Urgat{% endblock %}</title>
+    <!-- Bu yerga umumiy CSS yoki Bootstrap linklarini qo'shishingiz mumkin -->
+</head>
+<body>
+    <!-- Barcha sahifalarda bir xil chiqadigan qism (Masalan: Menu / Header) -->
+    <header>
+        <nav>
+            <a href="{% url 'teacher_register' %}">Ro'yxatdan o'tish</a> | 
+            <a href="{% url 'teacher_dashboard' %}">Kabinet</a>
+        </nav>
+    </header>
+
+    <hr>
+
+    <!-- Har bir sahifaning o'ziga xos asosiy qismi shu yerga kelib tushadi -->
+    <div class="content">
+        {% block content %}
+        {% endblock %}
+    </div>
+
+    <hr>
+    <!-- Footer qismi -->
+    <footer>
+        <p>&copy; 2026 Online Urgat</p>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tizimga kirish - Online Urgat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        input[type="text"], input[type="password"], input[type="email"] {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid #374151;
+            border-radius: 0.75rem;
+            outline: none;
+            transition: all 0.2s ease-in-out;
+            background-color: #1f2937;
+            color: #f3f4f6;
+            font-size: 0.95rem;
+        }
+        input:focus {
+            border-color: #6366f1;
+            background-color: #111827;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+        }
+        label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #9ca3af;
+            margin-bottom: 0.5rem;
+        }
+        .errorlist {
+            font-size: 0.75rem;
+            color: #ef4444;
+            margin-top: 0.25rem;
+            list-style: none;
+            padding: 0;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-900 via-gray-800 to-indigo-950 min-h-screen text-gray-100 flex flex-col justify-between">
+
+    <!-- Yuqori menyu -->
+    <header class="w-full bg-gray-900/80 backdrop-blur-md shadow-lg border-b border-gray-800 py-4 px-6 flex justify-between items-center">
+        <div class="text-xl font-bold text-indigo-400">Online Urgat</div>
+        <div class="space-x-4 text-sm font-medium">
+            <a href="{% url 'register' %}" class="text-gray-400 hover:text-indigo-400 transition">Ro'yxatdan o'tish</a>
+        </div>
+    </header>
+
+    <!-- Asosiy qism -->
+    <main class="flex items-center justify-center px-4 py-12 flex-grow">
+        <div class="bg-gray-900/90 backdrop-blur-md p-8 rounded-3xl shadow-2xl w-full max-w-md border border-gray-800">
+            
+            <div class="text-center mb-8">
+                <span class="bg-indigo-500/20 text-indigo-400 text-xs font-bold uppercase px-3 py-1 rounded-full border border-indigo-500/30">Xush kelibsiz</span>
+                <h2 class="text-2xl font-extrabold text-white mt-3">Tizimga kirish</h2>
+                <p class="text-sm text-gray-400 mt-1">Hisobingizga kirish uchun ma'lumotlarni kiriting</p>
+            </div>
+
+            <form method="post" class="space-y-5">
+                {% csrf_token %}
+                
+                <div class="space-y-4">
+                    {{ form.as_p }}
+                </div>
+
+                <button type="submit" class="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-semibold hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-500/30 transition duration-200 shadow-lg shadow-indigo-600/20 mt-2">
+                    Kirish
+                </button>
+            </form>
+
+            <div class="text-center mt-6 text-sm text-gray-400">
+                Hisobingiz yo'qmi? 
+                <a href="{% url 'register' %}" class="text-indigo-400 font-semibold hover:underline ml-1">Ro'yxatdan o'tish</a>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Pastki qism -->
+    <footer class="text-center py-6 text-sm text-gray-500 border-t border-gray-800 bg-gray-900/50">
+        &copy; 2026 Online Urgat. Barcha huquqlar himoyalangan.
+    </footer>
+
+</body>
+</html>

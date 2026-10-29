@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Testni tahrirlash</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-white">
+<div class="mx-auto max-w-3xl px-4 py-10">
+    <div class="rounded-[30px] border border-white/10 bg-slate-900/70 p-6 shadow-2xl backdrop-blur-md sm:p-8">
+        <div class="mb-6 flex items-center justify-between gap-3">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-200">Tahrirlash</p>
+                <h1 class="mt-2 text-3xl font-black">{{ test.title }}</h1>
+            </div>
+            <a href="{% url 'online_urgat:teacher_dashboard' %}" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-white/10">Kabinetga qaytish</a>
+        </div>
+
+        <form method="post" enctype="multipart/form-data" class="space-y-5">
+            {% csrf_token %}
+            <div>
+                <label class="mb-2 block text-sm font-medium text-slate-200">Test nomi</label>
+                {{ form.title }}
+            </div>
+            <div>
+                <label class="mb-2 block text-sm font-medium text-slate-200">Fan</label>
+                {{ form.subject }}
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-200">Test rasm</label>
+                    {{ form.cover_image }}
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-200">Test PDF</label>
+                    {{ form.resource_pdf }}
+                </div>
+            </div>
+            <div class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                {{ form.is_published }}
+                <label for="id_is_published" class="text-sm text-slate-200">Test ommaga ko'rinsin</label>
+            </div>
+
+            {% if form.errors %}
+                <div class="rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">
+                    {{ form.errors }}
+                </div>
+            {% endif %}
+
+            <button type="submit" class="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 font-bold text-white shadow-lg shadow-cyan-500/20 hover:opacity-95">
+                Saqlash
+            </button>
+        </form>
+
+        <div class="space-y-4">
+            <h2 class="text-2xl font-bold text-white">Savollar</h2>
+            {% if questions %}
+                {% for question in questions %}
+                    <div class="glass-soft rounded-[22px] p-4">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p class="text-sm text-slate-300">{{ forloop.counter }}. {{ question.question_text|truncatechars:90 }}</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <a href="{% url 'online_urgat:edit_question' test.id question.id %}" class="rounded-xl bg-amber-500/20 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/30">Tahrirlash</a>
+                                <form method="post" action="{% url 'online_urgat:delete_question' test.id question.id %}" onsubmit="return confirm('Savolni o\'chirishni xohlaysizmi?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-500/30">O'chirish</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="glass-soft rounded-[22px] p-4 text-slate-300">Hali savollar qo'shilmagan.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+</body>
+</html>

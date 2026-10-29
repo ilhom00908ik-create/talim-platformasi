@@ -1,0 +1,18 @@
+{% extends 'accounts/base.html' %}
+{% block title %}Natija{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-2xl py-10">
+    <div class="glass rounded-[30px] p-8 text-center shadow-2xl">
+        <div class="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400/30 to-cyan-400/30 text-3xl">✅</div>
+        <p class="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-200">Test yakunlandi</p>
+        <h2 class="mt-4 text-3xl font-black text-white">{{ test.title }}</h2>
+        <div class="mt-6 text-5xl font-black text-emerald-300">{{ score }}/{{ total_questions }}</div>
+        <p class="mt-3 text-lg text-slate-300">Natija: <span class="font-bold text-cyan-200">{{ percentage|floatformat:2 }}%</span></p>
+        <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <a href="{% url 'home' %}" class="rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-3 font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:opacity-95">Bosh sahifaga qaytish</a>
+            <a href="{% url 'test_history' %}" class="rounded-2xl border border-white/15 bg-white/5 px-5 py-3 font-semibold text-white hover:bg-white/10">Tarixni ko'rish</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends 'accounts/base.html' %}
+
+{% block title %}Mening profilim{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-6xl py-4">
+    <div class="grid gap-6 md:grid-cols-3">
+        <!-- Chap tomon: Hisob va Rasm -->
+        <div class="glass rounded-[30px] p-6 text-center">
+            <div class="mx-auto flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-gradient-to-br from-cyan-500/30 to-violet-500/30 text-5xl shadow-lg shadow-cyan-500/20">
+                👨‍🎓
+            </div>
+            <h3 class="mt-5 text-2xl font-black text-white">Ilhomjon</h3>
+            <p class="mt-2 text-sm text-slate-300">+998901234567</p>
+
+            <!-- Hisob balansi -->
+            <div class="mt-6 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-4 text-left">
+                <span class="text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200">Hisob balansi</span>
+                <div class="mt-2 text-3xl font-black text-cyan-100">250,000 so'm</div>
+            </div>
+
+            <!-- To'lov tizimlari tugmalari -->
+            <div class="mt-5 grid grid-cols-2 gap-2">
+                <button class="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-500">CLICK</button>
+                <button class="rounded-xl bg-teal-500 px-3 py-2 text-xs font-bold text-white shadow-lg shadow-teal-500/20 hover:bg-teal-400">PAYME</button>
+            </div>
+        </div>
+
+        <!-- O'ng tomon: Ma'lumotlarni tahrirlash -->
+        <div class="glass rounded-[30px] p-6 md:col-span-2">
+            <h2 class="text-3xl font-black text-white">Profil ma'lumotlari</h2>
+            <form class="mt-6 space-y-4">
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-slate-200">Ism</label>
+                        <input type="text" value="Ilhomjon" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/80">
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-slate-200">Familiya</label>
+                        <input type="text" value="Familiya" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/80">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-200">Email manzili</label>
+                    <input type="email" value="ilhom@gmail.com" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/80">
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-slate-200">Profil rasmini yangilash</label>
+                    <input type="file" class="block w-full text-sm text-slate-300 file:mr-4 file:rounded-xl file:border-0 file:bg-cyan-500/20 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-cyan-100 hover:file:bg-cyan-500/30">
+                </div>
+
+                <button type="submit" class="rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-500 px-6 py-3 font-bold text-white shadow-lg shadow-cyan-500/20 transition hover:opacity-95">
+                    Saqlash
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

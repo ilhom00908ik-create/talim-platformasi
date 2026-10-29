@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block title %}Test topshirish{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-4xl space-y-6">
+    <div class="glass rounded-[30px] p-6 sm:p-8">
+        <div class="mb-6 flex items-center justify-between gap-3">
+            <div>
+                <p class="text-xs uppercase tracking-[0.2em] text-slate-300">Test</p>
+                <h1 class="mt-2 text-2xl font-black text-white">Mavzu: Mexanika asoslari</h1>
+            </div>
+            <span class="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-100">1 / 10</span>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-2">
+            <div class="glass-soft rounded-[24px] p-4">
+                <label class="mb-2 block text-sm font-medium text-slate-200">Mavzuni tanlang:</label>
+                <select class="w-full rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2.5 text-sm text-white focus:border-cyan-400/60 focus:outline-none">
+                    <option class="bg-slate-900">1-Mavzu: Mexanika asoslari</option>
+                    <option class="bg-slate-900">2-Mavzu: Dinamika</option>
+                </select>
+            </div>
+            <div class="glass-soft rounded-[24px] p-4">
+                <label class="mb-2 block text-sm font-medium text-slate-200">Variantni tanlang:</label>
+                <select class="w-full rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2.5 text-sm text-white focus:border-cyan-400/60 focus:outline-none">
+                    <option class="bg-slate-900">1-variant</option>
+                    <option class="bg-slate-900">2-variant</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <form method="POST" action="#" class="space-y-6">
+        {% csrf_token %}
+
+        <div class="glass rounded-[30px] p-6 sm:p-8">
+            <p class="mb-5 text-xl font-bold text-white">1-Savol: Nyutonning nechta qonuni bor?</p>
+            <div class="space-y-3">
+                <label class="flex cursor-pointer items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-slate-200 transition hover:bg-white/10">
+                    <input type="radio" name="q1" value="A" class="h-4 w-4 accent-cyan-400">
+                    <span>A) 2 ta</span>
+                </label>
+                <label class="flex cursor-pointer items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-slate-200 transition hover:bg-white/10">
+                    <input type="radio" name="q1" value="B" class="h-4 w-4 accent-cyan-400">
+                    <span>B) 3 ta</span>
+                </label>
+                <label class="flex cursor-pointer items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-slate-200 transition hover:bg-white/10">
+                    <input type="radio" name="q1" value="C" class="h-4 w-4 accent-cyan-400">
+                    <span>C) 4 ta</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="flex justify-end">
+            <button type="submit" class="rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-8 py-3 text-base font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:opacity-95">
+                Tugatish va Natijani ko'rish
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

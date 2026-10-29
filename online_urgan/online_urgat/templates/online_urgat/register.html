@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ro'yxatdan o'tish</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background:
+                radial-gradient(circle at top left, rgba(45,212,191,0.18), transparent 28%),
+                radial-gradient(circle at bottom right, rgba(168,85,247,0.18), transparent 26%),
+                linear-gradient(135deg, #020817 0%, #0f172a 50%, #111827 100%);
+        }
+        .glass {
+            background: rgba(15, 23, 42, 0.42);
+            border: 1px solid rgba(255,255,255,0.12);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            box-shadow: 0 25px 50px rgba(15, 23, 42, 0.35);
+        }
+        .field input, .field textarea, .field select {
+            width: 100%;
+            border-radius: 0.9rem;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.04);
+            color: white;
+            padding: 0.75rem 0.9rem;
+            outline: none;
+        }
+        .field input:focus, .field textarea:focus, .field select:focus {
+            box-shadow: 0 0 0 2px rgba(45,212,191,0.35);
+            border-color: rgba(45,212,191,0.6);
+        }
+        .field label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: rgb(226 232 240);
+            font-size: 0.875rem;
+        }
+        .field { margin-bottom: 1rem; }
+        .field p { margin: 0; }
+    </style>
+</head>
+<body class="min-h-screen text-white">
+    <div class="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4 py-10">
+        <div class="glass w-full max-w-md rounded-[30px] p-7 sm:p-8">
+            <div class="mb-6 text-center">
+                <p class="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-200">A'zo bo'lish</p>
+                <h1 class="mt-3 text-3xl font-black">Ro'yxatdan o'tish</h1>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="field">
+                    {{ form.as_p }}
+                </div>
+                <button type="submit" class="mt-4 w-full rounded-2xl bg-gradient-to-r from-emerald-400 to-cyan-500 px-4 py-3 font-bold text-slate-950 shadow-lg shadow-emerald-500/20 hover:opacity-95">
+                    Yaratish
+                </button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

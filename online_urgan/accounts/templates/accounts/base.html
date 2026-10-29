@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}MathPlatform{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    boxShadow: {
+                        glass: '0 20px 45px rgba(15, 23, 42, 0.35)',
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background:
+                radial-gradient(circle at top left, rgba(34, 211, 238, 0.22), transparent 32%),
+                radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.16), transparent 28%),
+                linear-gradient(135deg, #020817 0%, #0f172a 45%, #111827 100%);
+            min-height: 100vh;
+        }
+        .glass {
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(255,255,255,0.14);
+            box-shadow: 0 25px 50px rgba(15, 23, 42, 0.35);
+        }
+        .glass-soft {
+            background: rgba(15, 23, 42, 0.32);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .nav-active {
+            background: linear-gradient(135deg, rgba(14,165,233,0.25), rgba(168,85,247,0.18));
+            border-color: rgba(125, 211, 252, 0.4);
+        }
+        .glass-footer {
+            background: rgba(15, 23, 42, 0.52);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(255,255,255,0.12);
+            box-shadow: 0 -20px 45px rgba(15, 23, 42, 0.25);
+        }
+        .nav-link {
+            transition: all 0.2s ease;
+        }
+        .nav-link:hover {
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body class="text-slate-100 antialiased">
+    <div class="relative min-h-screen">
+        <nav class="glass sticky top-0 z-50 border-b border-white/10">
+            <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 to-violet-500 text-lg font-black text-slate-950 shadow-lg shadow-cyan-500/20">M</div>
+                    <div>
+                        <div class="text-lg font-bold tracking-wide">MathPlatform</div>
+                        <div class="text-[10px] uppercase tracking-[0.22em] text-slate-300">Learning Hub</div>
+                    </div>
+                </div>
+
+                <div class="hidden items-center gap-2 md:flex">
+                    <a href="{% url 'home' %}" class="nav-link rounded-xl px-3 py-2 text-sm font-medium transition {% if request.resolver_match.url_name == 'home' %}nav-active text-cyan-100{% else %}text-slate-200 hover:bg-white/5{% endif %}">Bosh sahifa</a>
+                    <a href="{% url 'kurslar' %}" class="nav-link rounded-xl px-3 py-2 text-sm font-medium transition {% if request.resolver_match.url_name == 'kurslar' %}nav-active text-cyan-100{% else %}text-slate-200 hover:bg-white/5{% endif %}">Kurslar</a>
+                    <a href="{% url 'oqituvchilar' %}" class="nav-link rounded-xl px-3 py-2 text-sm font-medium transition {% if request.resolver_match.url_name == 'oqituvchilar' %}nav-active text-cyan-100{% else %}text-slate-200 hover:bg-white/5{% endif %}">O'qituvchilar</a>
+                    <a href="{% url 'mening_kurslarim' %}" class="nav-link rounded-xl px-3 py-2 text-sm font-medium transition {% if request.resolver_match.url_name == 'mening_kurslarim' %}nav-active text-cyan-100{% else %}text-slate-200 hover:bg-white/5{% endif %}">Mening kurslarim</a>
+                    {% if user.is_authenticated %}
+                        <a href="{% url 'online_urgat:teacher_dashboard' %}" class="nav-link rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20">O'qituvchi kabineti</a>
+                    {% else %}
+                        <a href="{% url 'online_urgat:login' %}" class="nav-link rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20">O'qituvchi kabineti</a>
+                    {% endif %}
+                </div>
+
+                <div class="flex items-center gap-2">
+                    {% if user.is_authenticated %}
+                        <span class="hidden rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-200 sm:block">Salom, {{ user.username }}</span>
+                        <a href="{% url 'logout' %}" class="rounded-xl bg-red-500/80 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-red-500/30 transition hover:bg-red-500">Chiqish</a>
+                    {% else %}
+                        <a href="{% url 'login' %}" class="hidden rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10 sm:inline-flex">Kirish</a>
+                        <a href="{% url 'register' %}" class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:opacity-95">Ro'yxatdan o'tish</a>
+                    {% endif %}
+                    <button id="mobileMenuButton" type="button" class="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-lg text-white md:hidden" aria-expanded="false" aria-label="Menu">
+                        ☰
+                    </button>
+                </div>
+            </div>
+
+            <div id="mobileMenu" class="hidden border-t border-white/10 bg-slate-950/60 px-4 py-4 md:hidden">
+                <div class="flex flex-col gap-2">
+                    <a href="{% url 'home' %}" class="rounded-xl px-3 py-2 text-sm font-medium text-slate-200 hover:bg-white/5">Bosh sahifa</a>
+                    <a href="{% url 'kurslar' %}" class="rounded-xl px-3 py-2 text-sm font-medium text-slate-200 hover:bg-white/5">Kurslar</a>
+                    <a href="{% url 'oqituvchilar' %}" class="rounded-xl px-3 py-2 text-sm font-medium text-slate-200 hover:bg-white/5">O'qituvchilar</a>
+                    <a href="{% url 'mening_kurslarim' %}" class="rounded-xl px-3 py-2 text-sm font-medium text-slate-200 hover:bg-white/5">Mening kurslarim</a>
+                    {% if user.is_authenticated %}
+                        <a href="{% url 'online_urgat:teacher_dashboard' %}" class="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100">O'qituvchi kabineti</a>
+                    {% else %}
+                        <a href="{% url 'online_urgat:login' %}" class="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100">O'qituvchi kabineti</a>
+                    {% endif %}
+                    {% if user.is_authenticated %}
+                        <a href="{% url 'logout' %}" class="rounded-xl bg-red-500/80 px-3 py-2 text-sm font-semibold text-white">Chiqish</a>
+                    {% else %}
+                        <a href="{% url 'login' %}" class="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white">Kirish</a>
+                    {% endif %}
+                </div>
+            </div>
+        </nav>
+
+        <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+            {% block content %}{% endblock %}
+        </main>
+
+        <footer class="mx-auto max-w-7xl px-4 pb-10 pt-2 sm:px-6 lg:px-8">
+            <div class="glass-footer rounded-[28px] p-5 sm:p-7">
+                <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <div class="text-lg font-black text-white">MathPlatform</div>
+                        <p class="mt-2 max-w-xl text-sm text-slate-300">
+                            Zamonaviy ta'lim, interaktiv testlar va professional darslar uchun eng qulay platforma.
+                        </p>
+                    </div>
+
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <a href="{% url 'home' %}" class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 hover:bg-white/10">Bosh sahifa</a>
+                        <a href="{% url 'kurslar' %}" class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 hover:bg-white/10">Kurslar</a>
+                        {% if user.is_authenticated %}
+                            <a href="{% url 'test_history' %}" class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20">Natijalarim</a>
+                        {% else %}
+                            <a href="{% url 'register' %}" class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20">Ro'yxatdan o'tish</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const mobileMenuButton = document.getElementById('mobileMenuButton');
+            const mobileMenu = document.getElementById('mobileMenu');
+
+            if (mobileMenuButton && mobileMenu) {
+                mobileMenuButton.addEventListener('click', function () {
+                    const isOpen = !mobileMenu.classList.contains('hidden');
+                    mobileMenu.classList.toggle('hidden');
+                    mobileMenuButton.setAttribute('aria-expanded', String(!isOpen));
+                });
+            }
+        });
+    </script>
+</body>
+</html>

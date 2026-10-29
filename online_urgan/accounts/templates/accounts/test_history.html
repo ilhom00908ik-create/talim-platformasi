@@ -1,0 +1,45 @@
+{% extends 'accounts/base.html' %}
+{% block title %}Test tarixi{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-6xl py-8">
+    <div class="glass rounded-[30px] p-6 sm:p-8">
+        <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-200">Tarix</p>
+                <h1 class="mt-2 text-3xl font-black text-white">Test tarixi</h1>
+            </div>
+            <a href="{% url 'home' %}" class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10">Bosh sahifaga</a>
+        </div>
+
+        {% if attempts %}
+            <div class="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/20">
+                <table class="min-w-full divide-y divide-white/10 text-left text-sm text-slate-200">
+                    <thead class="bg-white/5">
+                        <tr>
+                            <th class="px-4 py-3 font-medium text-slate-300">Test</th>
+                            <th class="px-4 py-3 font-medium text-slate-300">Fan</th>
+                            <th class="px-4 py-3 font-medium text-slate-300">To'g'ri</th>
+                            <th class="px-4 py-3 font-medium text-slate-300">Foiz</th>
+                            <th class="px-4 py-3 font-medium text-slate-300">Sana</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/10">
+                        {% for attempt in attempts %}
+                            <tr class="hover:bg-white/5">
+                                <td class="px-4 py-3 text-white">{{ attempt.test.title }}</td>
+                                <td class="px-4 py-3">{{ attempt.test.subject }}</td>
+                                <td class="px-4 py-3">{{ attempt.correct_answers }}/{{ attempt.total_questions }}</td>
+                                <td class="px-4 py-3 text-cyan-200">{{ attempt.percentage }}%</td>
+                                <td class="px-4 py-3 text-slate-400">{{ attempt.submitted_at|date:'d.m.Y H:i' }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="glass-soft rounded-[24px] p-6 text-slate-300">Hozircha test tarixi mavjud emas.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

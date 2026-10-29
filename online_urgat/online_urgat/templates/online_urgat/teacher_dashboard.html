@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>O'qituvchi Kabineti - Online Urgat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen flex overflow-hidden">
+
+    <!-- CHAP YON MENYU (SIDEBAR) -->
+    <aside id="sidebar" class="w-64 bg-gray-900 border-r border-gray-800 flex flex-col justify-between p-4 transition-all duration-300 relative z-10">
+        <div>
+            <div class="flex justify-between items-center mb-8 px-2">
+                <span id="logoText" class="text-xl font-bold text-indigo-400 transition-opacity duration-300">Online Urgat</span>
+                <button onclick="toggleSidebar()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 p-2 rounded-xl transition border border-gray-700">
+                    ◀
+                </button>
+            </div>
+
+            <nav class="space-y-2">
+                <a href="#" onclick="switchTab('home', event)" id="nav-home" class="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-800 text-white font-medium transition">
+                    <span>🏠</span> <span class="nav-text">Bosh sahifa</span>
+                </a>
+                <a href="#" onclick="switchTab('profile', event)" id="nav-profile" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:bg-gray-800/60 hover:text-white transition">
+                    <span>👤</span> <span class="nav-text">Profil</span>
+                </a>
+                <a href="#" onclick="switchTab('courses', event)" id="nav-courses" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:bg-gray-800/60 hover:text-white transition">
+                    <span>📚</span> <span class="nav-text">Kurslarim</span>
+                </a>
+                <a href="#" onclick="switchTab('tests', event)" id="nav-tests" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:bg-gray-800/60 hover:text-white transition">
+                    <span>✍️</span> <span class="nav-text">Testlarim</span>
+                </a>
+                <a href="#" onclick="switchTab('live', event)" id="nav-live" class="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:bg-gray-800/60 hover:text-white transition">
+                    <span>🔴</span> <span class="nav-text">Darsni boshlash</span>
+                </a>
+            </nav>
+        </div>
+
+        <div class="border-t border-gray-800 pt-4 space-y-4">
+            <div class="px-2 text-sm text-gray-400 nav-text truncate">
+                Salom, <b class="text-white">{{ request.user.username }}</b>
+            </div>
+            <form action="{% url 'logout' %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl font-semibold transition text-center flex justify-center items-center gap-2">
+                    <span>🚪</span> <span class="nav-text">Chiqish</span>
+                </button>
+            </form>
+        </div>
+    </aside>
+
+    <!-- ASOSIY QISM (DASHBOARD) -->
+    <div class="flex-grow flex flex-col h-screen overflow-y-auto">
+        <header class="bg-gray-900/50 border-b border-gray-800 px-8 py-4 flex justify-between items-center">
+            <h1 id="headerTitle" class="text-xl font-bold text-white">O'qituvchi Boshqaruv Paneli</h1>
+            <span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-lg text-xs font-semibold">
+                ✅ Tasdiqlangan Ustoz
+            </span>
+        </header>
+
+        <main class="p-8 flex-grow">
+            
+            <!-- 1. BOSH SAHIFA -->
+            <div id="tab-content-home" class="tab-pane space-y-6">
+                <div class="bg-gray-900 border border-gray-800 p-6 rounded-3xl max-w-2xl">
+                    <h2 class="text-xl font-bold mb-2">Xush kelibsiz, {{ request.user.username }}!</h2>
+                    <p class="text-gray-400 text-sm">Chap menyudan foydalanib kurslaringizni boshqaring, testlar tuzing yoki belgilangan vaqtda jonli darslarni boshlang.</p>
+                </div>
+            </div>
+
+            <!-- 2. PROFIL SAHIFASI -->
+            <div id="tab-content-profile" class="tab-pane hidden space-y-6">
+                <div class="bg-gray-900 border border-gray-800 p-8 rounded-3xl max-w-xl shadow-xl space-y-6">
+                    <div class="flex items-center gap-6">
+                        <div class="w-24 h-24 rounded-full bg-indigo-600/30 border-2 border-indigo-500 flex items-center justify-center text-3xl overflow-hidden">
+                            {% if application.photo %}
+                                <img src="{{ application.photo.url }}" alt="Profil rasmi" class="w-full h-full object-cover">
+                            {% else %}
+                                👨‍🏫
+                            {% endif %}
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold text-white">{{ request.user.get_full_name|default:request.user.username }}</h2>
+                            <span class="text-indigo-400 text-sm font-medium">O'qituvchi</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div class="bg-gray-800/50 p-4 rounded-2xl border border-gray-700/50">
+                            <span class="text-gray-400 block text-xs">Telefon raqam:</span>
+                            <strong class="text-white text-base">{{ application.phone|default:"Kiritilmagan" }}</strong>
+                        </div>
+                        <div class="bg-gray-800/50 p-4 rounded-2xl border border-gray-700/50">
+                            <span class="text-gray-400 block text-xs">Tajriba yillari:</span>
+                            <strong class="text-white text-base">⏳ {{ application.experience_years|default:"0" }} yil</strong>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-800/50 p-4 rounded-2xl border border-gray-700/50">
+                        <span class="text-gray-400 block text-xs mb-1">O'zingiz haqingizda (Bio):</span>
+                        <p class="text-white text-sm leading-relaxed">{{ application.bio|default:"Ma'lumot kiritilmagan." }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. KURSLARIM -->
+            <div id="tab-content-courses" class="tab-pane hidden space-y-6">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold">Mening Kurslarim</h2>
+                    <button onclick="openModal('courseModal')" class="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl font-semibold text-sm transition">＋ Yangi kurs qo'shish</button>
+                </div>
+
+                <!-- Kurslar ro'yxati (Django Loop) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {% for course in courses %}
+                        <div class="bg-gray-900 border border-gray-800 p-6 rounded-3xl space-y-3 flex flex-col justify-between">
+                            <div>
+                                <h3 class="text-lg font-bold text-white">{{ course.title }}</h3>
+                                <p class="text-sm text-gray-400 mt-1">{{ course.description|truncatechars:100 }}</p>
+                            </div>
+                            <div class="pt-4 border-t border-gray-800 flex justify-between items-center text-xs text-gray-400">
+                                <span>💰 Narxi: {{ course.price }} so'm</span>
+                                <span class="bg-indigo-500/20 text-indigo-400 px-2.5 py-1 rounded-lg">Faol</span>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="col-span-full bg-gray-900 border border-gray-800 p-6 rounded-3xl text-center text-gray-400">
+                            Hozircha kurslaringiz mavjud emas.
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- 4. TESTLARIM -->
+            <div id="tab-content-tests" class="tab-pane hidden space-y-6">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold">Mening Testlarim</h2>
+                    <button onclick="openModal('testModal')" class="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-xl font-semibold text-sm transition">＋ Test yaratish</button>
+                </div>
+
+                <!-- Testlar ro'yxati (Django Loop) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {% for test in tests %}
+                        <div class="bg-gray-900 border border-gray-800 p-6 rounded-3xl space-y-3">
+                            <h3 class="text-lg font-bold text-white">{{ test.title }}</h3>
+                            <p class="text-sm text-gray-400">Fan: <b>{{ test.subject }}</b></p>
+                            <span class="inline-block bg-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-lg text-xs">Savollar soni: {{ test.questions_count|default:"Noma'lum" }}</span>
+                        </div>
+                    {% empty %}
+                        <div class="col-span-full bg-gray-900 border border-gray-800 p-6 rounded-3xl text-center text-gray-400">
+                            Hozircha testlar yaratilmagan.
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- 5. DARSNI BOSHLASH (JONLI EFIR) -->
+            <div id="tab-content-live" class="tab-pane hidden space-y-6">
+                <h2 class="text-2xl font-bold mb-4">Jonli Darslar Jadvali</h2>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="bg-gray-900 border border-gray-800 p-6 rounded-3xl space-y-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-indigo-400 font-bold text-lg">🕒 09:00 - 10:30</span>
+                            <span class="bg-blue-500/20 text-blue-400 px-2.5 py-1 rounded-lg text-xs">Matematika</span>
+                        </div>
+                        <p class="text-sm text-gray-300">1-guruh bilan algebraik tenglamalar darsi.</p>
+                        <button onclick="openLiveStudio('09:00 - Matematika darsi')" class="w-full bg-indigo-600 hover:bg-indigo-700 py-2.5 rounded-xl font-semibold transition text-center">
+                            Darsni boshlash
+                        </button>
+                    </div>
+
+                    <div class="bg-gray-900 border border-gray-800 p-6 rounded-3xl space-y-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-indigo-400 font-bold text-lg">🕒 14:00 - 15:30</span>
+                            <span class="bg-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-lg text-xs">Fizika</span>
+                        </div>
+                        <p class="text-sm text-gray-300">Kinematika asoslari va masalalar yechish.</p>
+                        <button onclick="openLiveStudio('14:00 - Fizika darsi')" class="w-full bg-indigo-600 hover:bg-indigo-700 py-2.5 rounded-xl font-semibold transition text-center">
+                            Darsni boshlash
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- KURSI QO'SHISH MODAL OYNASI -->
+    <div id="courseModal" class="fixed inset-0 bg-black/80 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-800 p-6 rounded-3xl max-w-lg w-full space-y-4">
+            <div class="flex justify-between items-center pb-3 border-b border-gray-800">
+                <h3 class="text-lg font-bold text-white">Yangi Kurs Qo'shish</h3>
+                <button onclick="closeModal('courseModal')" class="text-gray-400 hover:text-white">✕</button>
+            </div>
+            <form action="{% url 'add_course' %}" method="POST" class="space-y-4">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Kurs nomi</label>
+                    <input type="text" name="title" required class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Tavsif</label>
+                    <textarea name="description" rows="3" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Narxi (so'm)</label>
+                    <input type="number" name="price" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500">
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 py-2.5 rounded-xl font-semibold text-sm transition">Saqlash</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- TEST YARATISH MODAL OYNASI -->
+    <div id="testModal" class="fixed inset-0 bg-black/80 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-800 p-6 rounded-3xl max-w-lg w-full space-y-4">
+            <div class="flex justify-between items-center pb-3 border-b border-gray-800">
+                <h3 class="text-lg font-bold text-white">Yangi Test Yaratish</h3>
+                <button onclick="closeModal('testModal')" class="text-gray-400 hover:text-white">✕</button>
+            </div>
+            <form action="{% url 'add_test' %}" method="POST" class="space-y-4">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Test nomi / Mavzusi</label>
+                    <input type="text" name="title" required class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Fan nomi</label>
+                    <input type="text" name="subject" required class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500">
+                </div>
+                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 py-2.5 rounded-xl font-semibold text-sm transition">Testni yaratish</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- JONLI EFIR STUDIO MODAL -->
+    <div id="liveStudioModal" class="fixed inset-0 bg-black/90 hidden z-50 flex flex-col p-6">
+        <div class="flex justify-between items-center pb-4 border-b border-gray-800">
+            <h3 id="liveStudioTitle" class="text-lg font-bold text-white">Jonli Efir Studiyasi</h3>
+            <button onclick="closeLiveStudio()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-xl text-sm font-semibold">Tugatish / Chiqish</button>
+        </div>
+
+        <div class="flex-grow flex flex-col justify-center items-center relative my-4 bg-gray-900 border border-gray-800 rounded-3xl overflow-hidden">
+            <div id="videoContainer" class="w-full h-full flex flex-col justify-center items-center">
+                <div class="text-red-500 font-extrabold text-4xl tracking-widest animate-pulse mb-2">NO SIGNAL</div>
+                <p class="text-gray-400 text-sm">Hozircha ekran yoki kamera ulanmagan</p>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-4 bg-gray-900 p-4 rounded-2xl border border-gray-800">
+            <button onclick="shareScreen()" class="bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-xl font-semibold text-sm transition flex items-center gap-2">
+                💻 Ekranni ulashish (Oyna / Tab)
+            </button>
+            <button onclick="toggleCamera('front')" class="bg-gray-800 hover:bg-gray-700 px-5 py-3 rounded-xl font-semibold text-sm transition flex items-center gap-2">
+                📷 Old kamera
+            </button>
+            <button onclick="toggleCamera('back')" class="bg-gray-800 hover:bg-gray-700 px-5 py-3 rounded-xl font-semibold text-sm transition flex items-center gap-2">
+                📸 Orqa kamera (Telefon)
+            </button>
+        </div>
+    </div>
+
+    <!-- JavaScript funksiyalari -->
+    <script>
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const navTexts = document.querySelectorAll('.nav-text');
+            const logoText = document.getElementById('logoText');
+            
+            if (sidebar.classList.contains('w-64')) {
+                sidebar.classList.remove('w-64');
+                sidebar.classList.add('w-20');
+                logoText.classList.add('hidden');
+                navTexts.forEach(el => el.classList.add('hidden'));
+            } else {
+                sidebar.classList.remove('w-20');
+                sidebar.classList.add('w-64');
+                logoText.classList.remove('hidden');
+                navTexts.forEach(el => el.classList.remove('hidden'));
+            }
+        }
+
+        function switchTab(tabId, event) {
+            if (event) event.preventDefault();
+            
+            document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.add('hidden'));
+            document.getElementById('tab-content-' + tabId).classList.remove('hidden');
+
+            document.querySelectorAll('nav a').forEach(link => {
+                link.classList.remove('bg-gray-800', 'text-white');
+                link.classList.add('text-gray-300');
+            });
+            const activeLink = document.getElementById('nav-' + tabId);
+            activeLink.classList.remove('text-gray-300');
+            activeLink.classList.add('bg-gray-800', 'text-white');
+
+            const titles = {
+                'home': "O'qituvchi Boshqaruv Paneli",
+                'profile': "O'qituvchi Profili",
+                'courses': "Mening Kurslarim",
+                'tests': "Mening Testlarim",
+                'live': "Jonli Dars Berish Paneli"
+            };
+            document.getElementById('headerTitle').innerText = titles[tabId];
+        }
+
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.remove('hidden');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        function openLiveStudio(lessonName) {
+            document.getElementById('liveStudioTitle').innerText = "Jonli Efir: " + lessonName;
+            document.getElementById('liveStudioModal').classList.remove('hidden');
+        }
+
+        function closeLiveStudio() {
+            document.getElementById('liveStudioModal').classList.add('hidden');
+        }
+
+        async function shareScreen() {
+            const container = document.getElementById('videoContainer');
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                container.innerHTML = `<video autoplay class="w-full h-full object-contain rounded-2xl"></video>`;
+                container.querySelector('video').srcObject = stream;
+            } catch (err) {
+                alert("Ekran ulashish bekor qilindi yoki qo'llab-quvvatlanmadi.");
+            }
+        }
+
+        async function toggleCamera(facingMode) {
+            const container = document.getElementById('videoContainer');
+            try {
+                const constraints = {
+                    video: { facingMode: facingMode === 'front' ? 'user' : 'environment' }
+                };
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                container.innerHTML = `<video autoplay class="w-full h-full object-cover rounded-2xl"></video>`;
+                container.querySelector('video').srcObject = stream;
+            } catch (err) {
+                alert("Kameraga ulanish imkoni bo'lmadi yoki ruxsat berilmadi.");
+            }
+        }
+    </script>
+</body>
+</html>

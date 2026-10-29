@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ lesson.title }} | Jonli dars</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background:
+                radial-gradient(circle at top left, rgba(34,211,238,0.18), transparent 26%),
+                radial-gradient(circle at bottom right, rgba(168,85,247,0.14), transparent 28%),
+                linear-gradient(135deg, #020817 0%, #0f172a 45%, #111827 100%);
+        }
+        .glass {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(255,255,255,0.12);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            box-shadow: 0 25px 50px rgba(15, 23, 42, 0.35);
+        }
+        .video-shell {
+            background: rgba(2, 6, 23, 0.8);
+            border: 1px solid rgba(255,255,255,0.09);
+        }
+        .chat-scroll::-webkit-scrollbar { width: 6px; }
+        .chat-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.4); border-radius: 9999px; }
+    </style>
+</head>
+<body class="min-h-screen text-white">
+<div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="glass rounded-[30px] p-5 sm:p-6">
+        <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+                <p class="text-[10px] font-semibold uppercase tracking-[0.25em] text-cyan-200">Jonli dars</p>
+                <h1 class="mt-2 text-3xl font-black text-white">{{ lesson.title }}</h1>
+                <p class="mt-2 text-slate-300">{{ lesson.subject|default:'Umumiy dars' }}</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                {% if is_live %}
+                    <span class="rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-rose-200">Hozir jonli</span>
+                {% else %}
+                    <span class="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-200">Kutilyapti</span>
+                {% endif %}
+                <button id="copyRoomLink" type="button" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-white/10">Linkni nusxalash</button>
+            </div>
+        </div>
+
+        <div class="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
+            <div class="space-y-4">
+                <div class="video-shell rounded-[28px] p-3">
+                    <div class="relative overflow-hidden rounded-[24px] border border-white/10 bg-slate-950">
+                        <video id="classroomVideo" autoplay muted playsinline class="h-[420px] w-full object-cover bg-slate-900"></video>
+                        <video id="remoteVideo" autoplay playsinline class="absolute bottom-4 right-4 hidden h-32 w-40 rounded-2xl border border-white/10 bg-slate-900 object-cover shadow-2xl"></video>
+                        <video id="screenVideo" autoplay playsinline class="absolute bottom-4 right-4 hidden h-32 w-40 rounded-2xl border border-white/10 bg-slate-900 object-cover shadow-2xl"></video>
+                        <div id="videoFallback" class="absolute inset-0 hidden items-center justify-center bg-slate-950 text-center text-slate-300">
+                            <div>
+                                <div class="text-4xl mb-3">📹</div>
+                                <p>Kamera yoqilmagan yoki ruxsat berilmagan.</p>
+                            </div>
+                        </div>
+                        <div class="absolute bottom-3 left-3 flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/70 px-3 py-1.5 text-xs text-slate-200">
+                            <span class="h-2.5 w-2.5 rounded-full bg-rose-500"></span>
+                            <span id="liveStatus">Kamera tayyorlanmoqda...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass rounded-[26px] p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <h2 class="text-lg font-bold text-white">Dars boshqaruvi</h2>
+                        <div class="flex items-center gap-2">
+                            <button id="startCamera" type="button" class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-cyan-500/20">Kamerani yoqish</button>
+                            <button id="stopCamera" type="button" class="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/10">O'chirish</button>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 grid gap-4 md:grid-cols-3">
+                        <div>
+                            <label class="mb-2 block text-sm text-slate-200">Kamera o'lchami</label>
+                            <input id="videoScale" type="range" min="40" max="100" value="100" class="w-full accent-cyan-500">
+                            <div class="mt-2 flex justify-between text-[11px] text-slate-400">
+                                <span>Kichik</span>
+                                <span>Yirik</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="mb-2 block text-sm text-slate-200">Audio</label>
+                            <button id="toggleAudio" type="button" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white hover:bg-white/10">Audio yoqish</button>
+                        </div>
+                        <div>
+                            <label class="mb-2 block text-sm text-slate-200">Ekran</label>
+                            <button id="shareScreen" type="button" class="w-full rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-500/20">Ekranni ulashish</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <aside class="space-y-5">
+                <div class="glass rounded-[26px] p-4">
+                    <h3 class="text-lg font-bold text-white">Dars ishtirokchilari</h3>
+                    <ul id="participants" class="mt-4 space-y-2 text-sm text-slate-200">
+                        <li class="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                            <span>{{ request.user.get_full_name|default:request.user.username }}</span>
+                            <span class="text-[10px] uppercase tracking-[0.2em] text-cyan-200">Siz</span>
+                        </li>
+                        {% if lesson.teacher %}
+                            <li class="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                                <span>{{ lesson.teacher.get_full_name|default:lesson.teacher.username }}</span>
+                                <span class="text-[10px] uppercase tracking-[0.2em] text-rose-200">O'qituvchi</span>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </div>
+
+                <div class="glass rounded-[26px] p-4">
+                    <div class="mb-3 flex items-center justify-between">
+                        <h3 class="text-lg font-bold text-white">Chat</h3>
+                        <span class="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-cyan-200">Live</span>
+                    </div>
+                    <div id="chatMessages" class="chat-scroll max-h-[260px] space-y-2 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/20 p-3 text-sm text-slate-200"></div>
+                    <div class="mt-3 flex gap-2">
+                        <input id="chatInput" type="text" maxlength="200" placeholder="Xabar yozing..." class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/80">
+                        <button id="sendChat" type="button" class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-3 py-2 text-sm font-bold text-white">Yuborish</button>
+                    </div>
+                </div>
+
+                <div class="glass rounded-[26px] p-4">
+                    <h3 class="text-lg font-bold text-white">Dars ma'lumotlari</h3>
+                    <ul class="mt-3 space-y-2 text-sm text-slate-300">
+                        <li>• Dars: {{ lesson.title }}</li>
+                        <li>• Holat: {% if is_live %}Jonli{% else %}Yakunlanmagan{% endif %}</li>
+                        <li>• O'qituvchi: {{ lesson.teacher.get_full_name|default:lesson.teacher.username }}</li>
+                    </ul>
+
+                    {% if lesson.stream_url %}
+                        <a href="{{ lesson.stream_url }}" target="_blank" rel="noopener" class="mt-4 inline-flex rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-100 hover:bg-rose-500/20">Havolani ochish</a>
+                    {% endif %}
+                </div>
+            </aside>
+        </div>
+    </div>
+</div>
+
+<script>
+    const video = document.getElementById('classroomVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const screenVideo = document.getElementById('screenVideo');
+    const fallback = document.getElementById('videoFallback');
+    const startBtn = document.getElementById('startCamera');
+    const stopBtn = document.getElementById('stopCamera');
+    const toggleAudioBtn = document.getElementById('toggleAudio');
+    const shareBtn = document.getElementById('shareScreen');
+    const scaleCtrl = document.getElementById('videoScale');
+    const liveStatus = document.getElementById('liveStatus');
+    const chatMessages = document.getElementById('chatMessages');
+    const chatInput = document.getElementById('chatInput');
+    const sendChatBtn = document.getElementById('sendChat');
+    const copyBtn = document.getElementById('copyRoomLink');
+
+    const roomKey = 'live-room-{{ lesson.id }}';
+    const userName = '{{ request.user.get_full_name|default:request.user.username }}';
+    const isTeacher = {{ is_teacher|yesno:"true,false" }};
+    const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${wsScheme}://${window.location.host}/ws/live/{{ lesson.id }}/`);
+
+    let localStream = null;
+    let screenStream = null;
+    let peerConnection = null;
+    let micEnabled = true;
+    let hasCamera = false;
+
+    const setStatus = (text) => {
+        liveStatus.textContent = text;
+    };
+
+    const addChatEntry = (message, sender = 'System') => {
+        const entry = document.createElement('div');
+        entry.className = 'rounded-xl border border-white/10 bg-white/5 px-3 py-2';
+        const name = sender === userName ? 'Siz' : sender;
+        entry.innerHTML = `<div class="mb-1 text-[10px] uppercase tracking-[0.2em] text-cyan-200">${name}</div><div class="text-slate-100">${message}</div>`;
+        chatMessages.appendChild(entry);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    };
+
+    const publishSignal = (type, payload = {}) => {
+        if (socket.readyState !== WebSocket.OPEN) return;
+        socket.send(JSON.stringify({
+            type,
+            room: roomKey,
+            sender: userName,
+            role: isTeacher ? 'teacher' : 'student',
+            ...payload,
+        }));
+    };
+
+    const createPeerConnection = () => {
+        if (peerConnection) return peerConnection;
+
+        peerConnection = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+
+        peerConnection.ontrack = (event) => {
+            const remoteStream = event.streams[0];
+            if (!remoteStream) return;
+            remoteVideo.srcObject = remoteStream;
+            remoteVideo.classList.remove('hidden');
+            remoteVideo.play();
+        };
+
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                publishSignal('candidate', { candidate: event.candidate });
+            }
+        };
+
+        peerConnection.onconnectionstatechange = () => {
+            if (peerConnection.connectionState === 'connected') {
+                setStatus('Ulanish bajarildi');
+            }
+            if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'disconnected') {
+                setStatus('Ulanish uzildi');
+            }
+        };
+
+        if (localStream) {
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+        }
+
+        return peerConnection;
+    };
+
+    const createOffer = async () => {
+        const connection = createPeerConnection();
+        const offer = await connection.createOffer();
+        await connection.setLocalDescription(offer);
+        publishSignal('offer', { offer });
+    };
+
+    const handleIncomingOffer = async (payload) => {
+        const connection = createPeerConnection();
+        await connection.setRemoteDescription(new RTCSessionDescription(payload.offer));
+
+        const answer = await connection.createAnswer();
+        await connection.setLocalDescription(answer);
+        publishSignal('answer', { answer });
+    };
+
+    const handleIncomingAnswer = async (payload) => {
+        if (!peerConnection) return;
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+    };
+
+    const handleIncomingCandidate = (payload) => {
+        if (!peerConnection || !payload.candidate) return;
+        peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch((err) => {
+            console.warn('ICE candidate error:', err);
+        });
+    };
+
+    const startCamera = async () => {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            setStatus('Brauzer kamera ruxsatini qo‘llab-quvvatlamaydi');
+            fallback.classList.remove('hidden');
+            fallback.classList.add('flex');
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: 'user',
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                },
+                audio: true,
+            });
+
+            localStream = stream;
+            video.srcObject = stream;
+            video.muted = true;
+            video.play();
+            hasCamera = true;
+            fallback.classList.add('hidden');
+            fallback.classList.remove('flex');
+            setStatus('Kamera ishlayapti');
+            startBtn.textContent = 'Kamera ishlayotgan';
+
+            if (!peerConnection) {
+                createPeerConnection();
+            } else {
+                stream.getTracks().forEach(track => {
+                    const existing = localStream.getTracks().find(t => t.kind === track.kind);
+                    if (existing) {
+                        peerConnection.removeTrack(existing);
+                    }
+                    peerConnection.addTrack(track, stream);
+                });
+            }
+
+            publishSignal('camera-ready', {});
+            if (isTeacher) {
+                await createOffer();
+            }
+        } catch (error) {
+            console.error('Camera error:', error);
+            setStatus('Kamera ochilmadi');
+            fallback.classList.remove('hidden');
+            fallback.classList.add('flex');
+        }
+    };
+
+    const stopCamera = () => {
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            localStream = null;
+        }
+        if (peerConnection) {
+            peerConnection.getSenders().forEach(sender => {
+                peerConnection.removeTrack(sender);
+            });
+        }
+        video.srcObject = null;
+        hasCamera = false;
+        setStatus('Kamera o‘chirildi');
+        startBtn.textContent = 'Kamerani yoqish';
+        fallback.classList.remove('hidden');
+        fallback.classList.add('flex');
+    };
+
+    const toggleAudio = () => {
+        if (!localStream) {
+            startCamera();
+            return;
+        }
+
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (!audioTrack) {
+            setStatus('Audio track topilmadi');
+            return;
+        }
+
+        audioTrack.enabled = !audioTrack.enabled;
+        micEnabled = audioTrack.enabled;
+        toggleAudioBtn.textContent = micEnabled ? 'Audio o‘chirish' : 'Audio yoqish';
+        setStatus(micEnabled ? 'Audio yoqildi' : 'Audio o‘chirildi');
+    };
+
+    const shareScreen = async () => {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+            setStatus('Brauzer ekran ulashishni qo‘llab-quvvatlamaydi');
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({
+                video: true,
+                audio: true,
+            });
+
+            screenStream = stream;
+            screenVideo.srcObject = stream;
+            screenVideo.classList.remove('hidden');
+            screenVideo.play();
+            shareBtn.textContent = 'Ekran ulanishi faol';
+            setStatus('Ekran ulashildi');
+
+            stream.getVideoTracks()[0].addEventListener('ended', () => {
+                screenVideo.classList.add('hidden');
+                screenVideo.srcObject = null;
+                shareBtn.textContent = 'Ekranni ulashish';
+                setStatus('Ekran ulashi to‘xtadi');
+            });
+        } catch (error) {
+            console.error('Screen share error:', error);
+            setStatus('Ekran ulashishda xatolik');
+        }
+    };
+
+    const sendChat = () => {
+        const message = chatInput.value.trim();
+        if (!message) return;
+        addChatEntry(message, userName);
+        publishSignal('chat-message', { message });
+        chatInput.value = '';
+    };
+
+    const copyRoomLink = async () => {
+        try {
+            await navigator.clipboard.writeText(window.location.href);
+            copyBtn.textContent = 'Link nusxalandi';
+            setStatus('Link nusxalandi');
+        } catch (error) {
+            copyBtn.textContent = 'Nusxalab bo‘lmadi';
+            setStatus('Linkni nusxalash mumkin emas');
+        }
+    };
+
+    socket.onopen = () => {
+        console.log('WebSocket connected');
+        setStatus('Kamera tayyorlanmoqda...');
+    };
+
+    socket.onmessage = async (event) => {
+        const message = JSON.parse(event.data);
+        if (!message || message.room !== roomKey) return;
+
+        if (message.type === 'chat-message' && message.message && message.sender !== userName) {
+            addChatEntry(message.message, message.sender || 'O‘quvchi');
+            return;
+        }
+
+        if (message.type === 'camera-ready' && message.sender !== userName && !hasCamera) {
+            await startCamera();
+            return;
+        }
+
+        if (message.type === 'offer' && message.sender !== userName) {
+            await handleIncomingOffer(message);
+            return;
+        }
+
+        if (message.type === 'answer' && message.sender !== userName) {
+            await handleIncomingAnswer(message);
+            return;
+        }
+
+        if (message.type === 'candidate' && message.sender !== userName) {
+            handleIncomingCandidate(message);
+        }
+    };
+
+    socket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+    };
+
+    socket.onclose = () => {
+        console.log('WebSocket closed');
+    };
+
+    startBtn.addEventListener('click', startCamera);
+    stopBtn.addEventListener('click', stopCamera);
+    toggleAudioBtn.addEventListener('click', toggleAudio);
+    shareBtn.addEventListener('click', shareScreen);
+    sendChatBtn.addEventListener('click', sendChat);
+    copyBtn.addEventListener('click', copyRoomLink);
+    chatInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            sendChat();
+        }
+    });
+
+    scaleCtrl.addEventListener('input', () => {
+        const value = Number(scaleCtrl.value) / 100;
+        video.style.transform = `scale(${value})`;
+        if (screenVideo.srcObject) {
+            screenVideo.style.transform = `scale(${value})`;
+        }
+    });
+
+    if (window.location.protocol === 'https:' || window.location.hostname === 'localhost') {
+        setStatus('Kamera tayyorlanmoqda...');
+    }
+</script>
+</body>
+</html>

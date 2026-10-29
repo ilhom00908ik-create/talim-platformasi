@@ -1,0 +1,89 @@
+{% extends 'accounts/base.html' %}
+{% block title %}Test ishlash{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-5xl pb-10">
+    <div class="glass rounded-[30px] p-6 sm:p-8">
+        <div class="flex flex-col gap-3 border-b border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+                <span class="inline-flex rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200">Test</span>
+                <h1 class="mt-3 text-3xl font-black text-white">{{ test.title }}</h1>
+                <p class="mt-2 text-slate-300">{{ test.subject }} · {{ question_index|add:1 }}/{{ total_questions }}</p>
+            </div>
+            {% if test.cover_image %}
+                <img src="{{ test.cover_image.url }}" alt="{{ test.title }}" class="h-20 w-20 rounded-2xl object-cover ring-2 ring-white/10 shadow-lg shadow-cyan-500/10">
+            {% endif %}
+        </div>
+
+        {% if test.resource_pdf %}
+            <div class="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-violet-400/20 bg-violet-500/10 p-4">
+                <span class="text-sm font-medium text-violet-100">📄 Test resursi mavjud</span>
+                <a href="{{ test.resource_pdf.url }}" target="_blank" rel="noopener" class="rounded-xl border border-violet-300/30 bg-violet-500/20 px-3 py-2 text-sm font-semibold text-violet-100 hover:bg-violet-500/30">PDFni ochish</a>
+                <a href="{{ test.resource_pdf.url }}" download class="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10">Yuklab olish</a>
+            </div>
+        {% endif %}
+
+        {% if is_empty %}
+            <div class="mt-8 rounded-[26px] border border-dashed border-white/15 bg-slate-900/25 p-8 text-center text-slate-300">
+                Bu test uchun hozircha savollar mavjud emas.
+            </div>
+        {% else %}
+            <form method="post" class="mt-8 space-y-6">
+                {% csrf_token %}
+                <div class="glass-soft rounded-[26px] p-5 sm:p-6">
+                    <div class="flex items-start gap-3">
+                        <span class="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-violet-500 text-sm font-bold text-white">{{ question_index|add:1 }}</span>
+                        <div class="w-full">
+                            <h2 class="text-lg font-semibold text-white sm:text-xl">{{ current_question.question_text }}</h2>
+
+                            {% if current_question.image %}
+                                <div class="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/25 p-2">
+                                    <img src="{{ current_question.image.url }}" alt="Savol rasmi" class="max-h-[420px] w-full rounded-xl object-contain shadow-lg shadow-slate-900/40" loading="lazy">
+                                </div>
+                            {% endif %}
+
+                            {% if current_question.resource_pdf %}
+                                <div class="mt-4 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3">
+                                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                        <span class="text-sm font-medium text-cyan-100">Savolga biriktirilgan PDF material</span>
+                                        <div class="flex gap-2">
+                                            <a href="{{ current_question.resource_pdf.url }}" target="_blank" rel="noopener" class="rounded-xl border border-cyan-300/30 bg-cyan-500/20 px-3 py-2 text-sm font-semibold text-cyan-50 hover:bg-cyan-500/30">Inline ko'rish</a>
+                                            <a href="{{ current_question.resource_pdf.url }}" download class="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10">Yuklab olish</a>
+                                        </div>
+                                    </div>
+                                    <iframe src="{{ current_question.resource_pdf.url }}" class="mt-3 h-[420px] w-full rounded-xl border border-white/10 bg-white" title="Question PDF"></iframe>
+                                </div>
+                            {% endif %}
+
+                            <div class="mt-5 grid gap-3 md:grid-cols-2">
+                                <label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-slate-900/25 px-4 py-3 transition hover:border-cyan-400/30 hover:bg-slate-900/40">
+                                    <input type="radio" name="q_{{ current_question.id }}" value="A" {% if current_selected == 'A' %}checked{% endif %} required class="mt-1 h-4 w-4 accent-cyan-500">
+                                    <span class="text-base text-slate-100"><span class="font-bold text-cyan-300">A.</span> {{ current_question.option_a }}</span>
+                                </label>
+                                <label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-slate-900/25 px-4 py-3 transition hover:border-cyan-400/30 hover:bg-slate-900/40">
+                                    <input type="radio" name="q_{{ current_question.id }}" value="B" {% if current_selected == 'B' %}checked{% endif %} class="mt-1 h-4 w-4 accent-cyan-500">
+                                    <span class="text-base text-slate-100"><span class="font-bold text-cyan-300">B.</span> {{ current_question.option_b }}</span>
+                                </label>
+                                <label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-slate-900/25 px-4 py-3 transition hover:border-cyan-400/30 hover:bg-slate-900/40">
+                                    <input type="radio" name="q_{{ current_question.id }}" value="C" {% if current_selected == 'C' %}checked{% endif %} class="mt-1 h-4 w-4 accent-cyan-500">
+                                    <span class="text-base text-slate-100"><span class="font-bold text-cyan-300">C.</span> {{ current_question.option_c }}</span>
+                                </label>
+                                <label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-slate-900/25 px-4 py-3 transition hover:border-cyan-400/30 hover:bg-slate-900/40">
+                                    <input type="radio" name="q_{{ current_question.id }}" value="D" {% if current_selected == 'D' %}checked{% endif %} class="mt-1 h-4 w-4 accent-cyan-500">
+                                    <span class="text-base text-slate-100"><span class="font-bold text-cyan-300">D.</span> {{ current_question.option_d }}</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end pt-2">
+                    <button type="submit" class="rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-500 px-6 py-3 text-base font-bold text-white shadow-lg shadow-cyan-500/20 transition hover:opacity-95">
+                        {% if question_index == total_questions|add:'-1' %}Yakunlash{% else %}Keyingi savol{% endif %}
+                    </button>
+                </div>
+            </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

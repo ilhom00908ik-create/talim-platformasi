@@ -1,0 +1,60 @@
+{% extends 'accounts/base.html' %}
+{% block title %}Kurslar - MathPlatform{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="glass rounded-[28px] p-6 sm:p-8">
+        <h2 class="text-3xl font-black text-white">📚 Mavjud kurslar</h2>
+        <p class="mt-2 max-w-2xl text-slate-300">
+            Platformamizdagi barcha o'quv kurslari va ularning ustozlari bilan tanishing.
+        </p>
+    </div>
+
+    <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div class="glass-soft rounded-[26px] p-5">
+            <div class="flex items-center justify-between">
+                <span class="inline-flex rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-200">Python</span>
+                <span class="text-2xl">🐍</span>
+            </div>
+            <h5 class="mt-4 text-2xl font-bold text-amber-200">Python va Django</h5>
+            <p class="mt-3 text-sm leading-6 text-slate-300">
+                Backend dasturlash asoslari, Django 5, DRF va sun'iy intellekt integratsiyalarini o'rganing.
+            </p>
+            <div class="mt-5 border-t border-white/10 pt-3">
+                <span class="text-xs uppercase tracking-[0.2em] text-slate-400">O'qituvchi</span>
+                <div class="mt-2 text-lg font-semibold text-emerald-300">Ilhomjon</div>
+            </div>
+        </div>
+
+        <div class="glass-soft rounded-[26px] p-5">
+            <div class="flex items-center justify-between">
+                <span class="inline-flex rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200">Matematika</span>
+                <span class="text-2xl">📐</span>
+            </div>
+            <h5 class="mt-4 text-2xl font-bold text-cyan-200">Oliy matematika</h5>
+            <p class="mt-3 text-sm leading-6 text-slate-300">
+                Matematik tahlil, progressiyalar, logarifmlar va murakkab tenglamalarni yechish sirlari.
+            </p>
+            <div class="mt-5 border-t border-white/10 pt-3">
+                <span class="text-xs uppercase tracking-[0.2em] text-slate-400">O'qituvchi</span>
+                <div class="mt-2 text-lg font-semibold text-cyan-300">Rustambek</div>
+            </div>
+        </div>
+
+        <div class="glass-soft rounded-[26px] p-5">
+            <div class="flex items-center justify-between">
+                <span class="inline-flex rounded-full border border-violet-400/20 bg-violet-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200">Frontend</span>
+                <span class="text-2xl">💻</span>
+            </div>
+            <h5 class="mt-4 text-2xl font-bold text-violet-200">Algoritmlar va Frontend</h5>
+            <p class="mt-3 text-sm leading-6 text-slate-300">
+                Veb interfeyslar yaratish, HTML/JS yordamida brauzer o'yinlarini dasturlash asoslari.
+            </p>
+            <div class="mt-5 border-t border-white/10 pt-3">
+                <span class="text-xs uppercase tracking-[0.2em] text-slate-400">O'qituvchi</span>
+                <div class="mt-2 text-lg font-semibold text-violet-300">Alisher</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

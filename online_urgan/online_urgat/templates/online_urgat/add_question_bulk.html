@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bir nechta savol qo'shish</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-white">
+<div class="mx-auto max-w-6xl px-4 py-10">
+    <div class="rounded-[30px] border border-white/10 bg-slate-900/70 p-6 shadow-2xl backdrop-blur-md sm:p-8">
+        <div class="mb-6 flex items-center justify-between gap-3">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-200">Ko'p savol</p>
+                <h1 class="mt-2 text-3xl font-black">{{ test.title }} uchun savollar</h1>
+            </div>
+            <a href="{% url 'online_urgat:teacher_dashboard' %}" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-white/10">Kabinetga qaytish</a>
+        </div>
+
+        <form method="post" enctype="multipart/form-data" class="space-y-6">
+            {% csrf_token %}
+            <div>
+                <label class="mb-2 block text-sm font-medium text-slate-200">Savollar soni</label>
+                <input type="number" name="question_count" min="1" max="10" value="3" class="w-32 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400/80">
+            </div>
+
+            <div class="space-y-5">
+                {% for i in '12345678910'|make_list %}
+                    <div class="rounded-[24px] border border-white/10 bg-slate-950/30 p-5">
+                        <h3 class="mb-4 text-lg font-semibold text-white">Savol {{ forloop.counter }}</h3>
+                        <div class="space-y-4">
+                            <textarea name="question_text_{{ forloop.counter0 }}" rows="2" placeholder="Savol matni" class="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/80"></textarea>
+                            <div class="grid gap-3 md:grid-cols-2">
+                                <input type="text" name="option_a_{{ forloop.counter0 }}" placeholder="A varianti" class="rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/80">
+                                <input type="text" name="option_b_{{ forloop.counter0 }}" placeholder="B varianti" class="rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/80">
+                                <input type="text" name="option_c_{{ forloop.counter0 }}" placeholder="C varianti" class="rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/80">
+                                <input type="text" name="option_d_{{ forloop.counter0 }}" placeholder="D varianti" class="rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/80">
+                            </div>
+                            <div class="grid gap-3 md:grid-cols-2">
+                                <div>
+                                    <label class="mb-2 block text-sm text-slate-200">To'g'ri javob</label>
+                                    <select name="correct_option_{{ forloop.counter0 }}" class="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400/80">
+                                        <option value="A">A</option>
+                                        <option value="B">B</option>
+                                        <option value="C">C</option>
+                                        <option value="D">D</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="mb-2 block text-sm text-slate-200">Rasm (ixtiyoriy)</label>
+                                    <input type="file" name="image_{{ forloop.counter0 }}" accept="image/*" class="block w-full text-sm text-slate-300 file:mr-3 file:rounded-xl file:border-0 file:bg-cyan-500/80 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="mb-2 block text-sm text-slate-200">PDF (ixtiyoriy)</label>
+                                <input type="file" name="resource_pdf_{{ forloop.counter0 }}" accept=".pdf" class="block w-full text-sm text-slate-300 file:mr-3 file:rounded-xl file:border-0 file:bg-violet-500/80 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white">
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <button type="submit" class="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 font-bold text-white shadow-lg shadow-cyan-500/20 hover:opacity-95">
+                Savollarni saqlash
+            </button>
+        </form>
+    </div>
+</div>
+</body>
+</html>
