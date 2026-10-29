@@ -9,3 +9,5 @@ daphne
 channels
 
 Pillow
+
+requests
