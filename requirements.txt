@@ -11,3 +11,9 @@ channels
 Pillow
 
 requests
+django
+gunicorn
+daphne
+channels
+psycopg2-binary
+python-dotenv
