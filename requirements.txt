@@ -17,3 +17,9 @@ daphne
 channels
 psycopg2-binary
 python-dotenv
+django
+gunicorn
+daphne
+channels
+psycopg2-binary
+python-dotenv
