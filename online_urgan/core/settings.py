@@ -25,16 +25,50 @@ load_dotenv(BASE_DIR.parent / '.env')
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-0su_ly#z#fjb3#1r)=3@#tdxn-)o1&d2hd6e&^*49ink4^_lrd')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'True').lower() in {'1', 'true', 'yes', 'on'}
+DEBUG = os.getenv('DEBUG', 'False').lower() in {'1', 'true', 'yes', 'on'}
 
-ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0,*').split(',') if host.strip()]
+# Xostlar va domenlarni to'g'ri sozlash (Railway domeni qat'iy kiritildi)
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '0.0.0.0',
+    'talim-platformasi-production-a63c.up.railway.app',
+    '.railway.app',
+    '.up.railway.app',
+]
 
+# CSRF uchun ishonchli domenlar ro'yxati
+CSRF_TRUSTED_ORIGINS = [
+    'https://talim-platformasi-production-a63c.up.railway.app',
+    'http://talim-platformasi-production-a63c.up.railway.app',
+    'https://localhost',
+    'http://localhost',
+    'https://127.0.0.1',
+    'http://127.0.0.1',
+]
+
+# Proksi va Cookie xavfsizlik sozlamalari (Railway uchun moslashtirilgan)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SAMESITE = 'Lax'
+USE_X_FORWARDED_HOST = True
+
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+ADMIN_TELEGRAM_ID = os.getenv('ADMIN_TELEGRAM_ID', '')
+if ADMIN_TELEGRAM_ID:
+    try:
+        ADMIN_TELEGRAM_ID = int(ADMIN_TELEGRAM_ID)
+    except (TypeError, ValueError):
+        ADMIN_TELEGRAM_ID = ''
 
 # Application definition
 
 INSTALLED_APPS = [
-    'daphne',
-    'channels',
+    # 'daphne',
+    # 'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -157,4 +191,3 @@ CHANNEL_LAYERS = {
         'BACKEND': 'channels.layers.InMemoryChannelLayer',
     },
 }
-
