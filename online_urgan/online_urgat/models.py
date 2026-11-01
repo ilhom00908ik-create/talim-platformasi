@@ -11,6 +11,10 @@ class TeacherApplication(models.Model):
     is_approved = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    @property
+    def is_verified(self):
+        return self.is_approved and self.user.is_staff
+
     def __str__(self):
         return f"{self.user.username} - ariza"
 
@@ -65,6 +69,19 @@ class TestQuestion(models.Model):
 
     def __str__(self):
         return f"{self.test.title} - {self.order}"
+
+
+class Answer(models.Model):
+    question = models.ForeignKey(TestQuestion, on_delete=models.CASCADE, related_name='answers')
+    text = models.CharField(max_length=255)
+    is_correct = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.question_id} -> {self.text}"
 
 
 class TestAttempt(models.Model):

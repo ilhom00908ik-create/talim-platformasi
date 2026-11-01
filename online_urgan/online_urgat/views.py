@@ -14,12 +14,23 @@ from .models import Course, LiveLesson, TeacherApplication, TeacherCertificate, 
 
 
 def teacher_allowed(user):
-    return TeacherApplication.objects.filter(user=user, is_approved=True).exists()
+    return bool(user and user.is_authenticated and user.is_staff and TeacherApplication.objects.filter(user=user, is_approved=True).exists())
+
+
+def teacher_application_status(user):
+    if not user or not user.is_authenticated:
+        return 'guest'
+    application = TeacherApplication.objects.filter(user=user).first()
+    if application and application.is_approved and user.is_staff:
+        return 'approved'
+    if application:
+        return 'pending'
+    return 'not_applied'
 
 
 @login_required(login_url='/online-urgat/login/')
 def teacher_register_view(request):
-    if TeacherApplication.objects.filter(user=request.user, is_approved=True).exists():
+    if teacher_allowed(request.user):
         return redirect('online_urgat:teacher_dashboard')
 
     if request.method == 'POST':
@@ -34,7 +45,7 @@ def teacher_register_view(request):
                 TeacherCertificate.objects.create(teacher=teacher_app, file=f)
 
             send_telegram_notification(teacher_app)
-            return redirect('online_urgat:teacher_dashboard')
+            return redirect('online_urgat:teacher_pending')
     else:
         form = TeacherRegistrationForm()
 
@@ -43,17 +54,21 @@ def teacher_register_view(request):
 
 @login_required(login_url='/online-urgat/login/')
 def teacher_dashboard_view(request):
-    application = TeacherApplication.objects.filter(user=request.user).first()
-    if not application or not application.is_approved:
-        messages.warning(request, 'Arizangiz admin tomonidan tasdiqlanishi kutilmoqda.')
-        return redirect('home')
+    status = teacher_application_status(request.user)
 
+    if status != 'approved':
+        messages.warning(request, 'Arizangiz admin tomonidan tasdiqlanishi kerak.')
+        return redirect('online_urgat:teacher_pending')
+
+    application = TeacherApplication.objects.filter(user=request.user).first()
+    courses = Course.objects.filter(teacher=request.user).order_by('-created_at')
     tests = Test.objects.filter(teacher=request.user).order_by('-created_at')
     live_lessons = LiveLesson.objects.filter(teacher=request.user).order_by('-created_at')
     attempts = TestAttempt.objects.filter(test__teacher=request.user).select_related('student', 'test').order_by('-submitted_at')
 
     return render(request, 'online_urgat/teacher_dashboard.html', {
         'application': application,
+        'courses': courses,
         'tests': tests,
         'live_lessons': live_lessons,
         'attempts': attempts,
@@ -65,7 +80,7 @@ def teacher_dashboard_view(request):
 @login_required(login_url='/online-urgat/login/')
 def create_live_lesson(request):
     if not teacher_allowed(request.user):
-        return redirect('home')
+        return redirect('online_urgat:teacher_pending')
 
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
@@ -89,9 +104,12 @@ def login_view(request):
         form = AuthenticationForm(request, data=request.POST)
         if form.is_valid():
             user = form.get_user()
-            if not teacher_allowed(user):
-                messages.warning(request, 'Sizning o\'qituvchi arizangiz admin tomonidan tasdiqlanishi kerak. Iltimos, admin ko\'rib chiqishini kuting.')
-                return redirect('online_urgat:login')
+            status = teacher_application_status(user)
+            if status != 'approved':
+                login(request, user)
+                if status == 'pending':
+                    return redirect('online_urgat:teacher_pending')
+                return redirect('online_urgat:teacher_register')
             login(request, user)
             return redirect('online_urgat:teacher_dashboard')
     else:
@@ -187,7 +205,7 @@ def send_telegram_notification(teacher_app):
 @login_required(login_url='/online-urgat/login/')
 def teacher_dashboard(request):
     if not teacher_allowed(request.user):
-        return redirect('home')
+        return redirect('online_urgat:teacher_pending')
 
     application = getattr(request.user, 'teacherapplication', None)
     courses = Course.objects.filter(teacher=request.user)
@@ -206,7 +224,7 @@ def teacher_dashboard(request):
 @login_required(login_url='/online-urgat/login/')
 def add_course(request):
     if not teacher_allowed(request.user):
-        return redirect('home')
+        return redirect('online_urgat:teacher_pending')
 
     if request.method == 'POST':
         title = request.POST.get('title')
@@ -225,7 +243,7 @@ def add_course(request):
 @login_required(login_url='/online-urgat/login/')
 def add_test(request):
     if not teacher_allowed(request.user):
-        return redirect('home')
+        return redirect('online_urgat:teacher_pending')
 
     if request.method == 'POST':
         form = TestForm(request.POST, request.FILES)
@@ -257,7 +275,7 @@ def add_test(request):
 @login_required(login_url='/online-urgat/login/')
 def add_question_to_test(request, test_id):
     if not teacher_allowed(request.user):
-        return redirect('home')
+        return redirect('online_urgat:teacher_pending')
 
     test = get_object_or_404(Test, id=test_id, teacher=request.user)
 
@@ -280,7 +298,7 @@ def add_question_to_test(request, test_id):
 @login_required(login_url='/online-urgat/login/')
 def add_question_bulk_to_test(request, test_id):
     if not teacher_allowed(request.user):
-        return redirect('home')
+        return redirect('online_urgat:teacher_pending')
 
     test = get_object_or_404(Test, id=test_id, teacher=request.user)
 
@@ -352,7 +370,7 @@ def join_live_lesson(request, lesson_id):
 @login_required(login_url='/online-urgat/login/')
 def start_live_lesson(request, lesson_id):
     if not teacher_allowed(request.user):
-        return redirect('home')
+        return redirect('online_urgat:teacher_pending')
 
     lesson = get_object_or_404(LiveLesson, id=lesson_id, teacher=request.user)
     lesson.is_live = True
@@ -368,7 +386,7 @@ def start_live_lesson(request, lesson_id):
 @login_required(login_url='/online-urgat/login/')
 def stop_live_lesson(request, lesson_id):
     if not teacher_allowed(request.user):
-        return redirect('home')
+        return redirect('online_urgat:teacher_pending')
 
     lesson = get_object_or_404(LiveLesson, id=lesson_id, teacher=request.user)
     lesson.is_live = False
@@ -381,7 +399,7 @@ def stop_live_lesson(request, lesson_id):
 @login_required(login_url='/online-urgat/login/')
 def edit_test(request, test_id):
     if not teacher_allowed(request.user):
-        return redirect('home')
+        return redirect('online_urgat:teacher_pending')
 
     test = get_object_or_404(Test, id=test_id, teacher=request.user)
     questions = test.questions.all()
@@ -396,17 +414,13 @@ def edit_test(request, test_id):
     else:
         form = TestForm(instance=test)
 
-    return render(request, 'online_urgat/edit_test.html', {
-        'form': form,
-        'test': test,
-        'questions': questions,
-    })
+    return render(request, 'online_urgat/edit_test.html', {'form': form, 'test': test, 'questions': questions})
 
 
 @login_required(login_url='/online-urgat/login/')
 def edit_question(request, test_id, question_id):
     if not teacher_allowed(request.user):
-        return redirect('home')
+        return redirect('online_urgat:teacher_pending')
 
     test = get_object_or_404(Test, id=test_id, teacher=request.user)
     question = get_object_or_404(TestQuestion, id=question_id, test=test)
@@ -427,7 +441,7 @@ def edit_question(request, test_id, question_id):
 @login_required(login_url='/online-urgat/login/')
 def delete_question(request, test_id, question_id):
     if not teacher_allowed(request.user):
-        return redirect('home')
+        return redirect('online_urgat:teacher_pending')
 
     test = get_object_or_404(Test, id=test_id, teacher=request.user)
     question = get_object_or_404(TestQuestion, id=question_id, test=test)
@@ -442,7 +456,7 @@ def delete_question(request, test_id, question_id):
 @login_required(login_url='/online-urgat/login/')
 def delete_test(request, test_id):
     if not teacher_allowed(request.user):
-        return redirect('home')
+        return redirect('online_urgat:teacher_pending')
 
     test = get_object_or_404(Test, id=test_id, teacher=request.user)
 
@@ -456,8 +470,6 @@ def delete_test(request, test_id):
 @login_required(login_url='/online-urgat/login/')
 def teacher_pending_view(request):
     application = TeacherApplication.objects.filter(user=request.user).first()
-    if application and application.is_approved:
+    if application and application.is_approved and request.user.is_staff:
         return redirect('online_urgat:teacher_dashboard')
-    return render(request, 'online_urgat/teacher_pending.html', {
-        'application': application,
-    })
+    return render(request, 'online_urgat/teacher_pending.html', {'application': application})

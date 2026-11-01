@@ -1,5 +1,14 @@
 from django.contrib import admin
+
 from .models import TeacherApplication, TeacherCertificate, Course, Test, TestQuestion, TestAttempt, LiveLesson
+
+
+def approve_teacher_application(application):
+    application.is_approved = True
+    application.save(update_fields=['is_approved'])
+    user = application.user
+    user.is_staff = True
+    user.save(update_fields=['is_staff'])
 
 
 @admin.register(TeacherApplication)
@@ -11,7 +20,8 @@ class TeacherApplicationAdmin(admin.ModelAdmin):
 
     @admin.action(description='Tasdiqlash')
     def approve_selected(self, request, queryset):
-        queryset.update(is_approved=True)
+        for application in queryset:
+            approve_teacher_application(application)
 
 
 @admin.register(TeacherCertificate)

@@ -17,6 +17,17 @@ ADMIN_ID = 7389059494
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
+
+def approve_application_sync(app_id):
+    teacher_app = TeacherApplication.objects.get(id=app_id)
+    teacher_app.is_approved = True
+    teacher_app.save(update_fields=['is_approved'])
+    user = teacher_app.user
+    user.is_staff = True
+    user.save(update_fields=['is_staff'])
+    return teacher_app
+
+
 # Tasdiqlash tugmasi bosilganda
 @dp.callback_query(F.data.startswith("approve_"))
 async def approve_teacher(callback: types.CallbackQuery):
@@ -25,29 +36,22 @@ async def approve_teacher(callback: types.CallbackQuery):
         return
 
     app_id = callback.data.split("_")[1]
-    
-    # Django ORM sinxron bo'lgani uchun sync_to_async ishlatamiz
-    try:
-        @sync_to_async
-        def approve_in_db():
-            teacher_app = TeacherApplication.objects.get(id=app_id)
-            teacher_app.is_approved = True
-            teacher_app.save()
-            return teacher_app
 
-        await approve_in_db()
-        
+    try:
+        await sync_to_async(approve_application_sync)(app_id)
+
         current_text = callback.message.caption or callback.message.text or ""
         new_text = current_text + "\n\n✅ **Holat: Admin tomonidan tasdiqlandi!**"
-        
+
         if callback.message.caption:
             await callback.message.edit_caption(caption=new_text, parse_mode=ParseMode.MARKDOWN, reply_markup=None)
         else:
             await callback.message.edit_text(text=new_text, parse_mode=ParseMode.MARKDOWN, reply_markup=None)
-            
+
         await callback.answer("Ariza muvaffaqiyatli tasdiqlandi!")
     except TeacherApplication.DoesNotExist:
         await callback.answer("Bunday ariza topilmadi yoki allaqachon o'chirilgan!", show_alert=True)
+
 
 # Rad etish tugmasi bosilganda
 @dp.callback_query(F.data.startswith("reject_"))
@@ -57,7 +61,7 @@ async def reject_teacher(callback: types.CallbackQuery):
         return
 
     app_id = callback.data.split("_")[1]
-    
+
     try:
         @sync_to_async
         def delete_from_db():
@@ -65,18 +69,19 @@ async def reject_teacher(callback: types.CallbackQuery):
             teacher_app.delete()
 
         await delete_from_db()
-        
+
         current_text = callback.message.caption or callback.message.text or ""
         new_text = current_text + "\n\n❌ **Holat: Rad etildi va o'chirildi!**"
-        
+
         if callback.message.caption:
             await callback.message.edit_caption(caption=new_text, parse_mode=ParseMode.MARKDOWN, reply_markup=None)
         else:
             await callback.message.edit_text(text=new_text, parse_mode=ParseMode.MARKDOWN, reply_markup=None)
-            
+
         await callback.answer("Ariza rad etildi!")
     except TeacherApplication.DoesNotExist:
         await callback.answer("Bunday ariza topilmadi yoki allaqachon o'chirilgan!", show_alert=True)
+
 
 @dp.message()
 async def check_admin(message: types.Message):
@@ -84,9 +89,11 @@ async def check_admin(message: types.Message):
         return
     await message.answer("Assalomu alaykum! Bu Online O'rgat platformasining maxsus admin botidir.")
 
+
 async def main():
     print("Telegram bot faqat admin uchun ishga tushdi...")
     await dp.start_polling(bot)
+
 
 if __name__ == '__main__':
     asyncio.run(main())
