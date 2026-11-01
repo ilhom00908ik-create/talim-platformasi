@@ -40,11 +40,7 @@ ALLOWED_HOSTS = [
 # CSRF uchun ishonchli domenlar ro'yxati
 CSRF_TRUSTED_ORIGINS = [
     'https://talim-platformasi-production-a63c.up.railway.app',
-    'http://talim-platformasi-production-a63c.up.railway.app',
-    'https://localhost',
-    'http://localhost',
-    'https://127.0.0.1',
-    'http://127.0.0.1',
+    'https://*.railway.app',
 ]
 
 # Proksi va Cookie xavfsizlik sozlamalari (Railway uchun moslashtirilgan)
@@ -67,8 +63,8 @@ if ADMIN_TELEGRAM_ID:
 # Application definition
 
 INSTALLED_APPS = [
-    # 'daphne',
-    # 'channels',
+     'daphne',
+     'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -191,3 +187,7 @@ CHANNEL_LAYERS = {
         'BACKEND': 'channels.layers.InMemoryChannelLayer',
     },
 }
+
+import os
+STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
