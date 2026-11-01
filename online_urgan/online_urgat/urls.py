@@ -9,6 +9,7 @@ app_name = 'online_urgat'
 urlpatterns = [
     path('', RedirectView.as_view(url='apply/')),
     path('apply/', views.teacher_register_view, name='teacher_register'),
+    path('pending/', views.teacher_pending_view, name='teacher_pending'),
     path('dashboard/', views.teacher_dashboard_view, name='teacher_dashboard'),
     path('login/', views.login_view, name='login'),
     path('logout/', LogoutView.as_view(), name='logout'),

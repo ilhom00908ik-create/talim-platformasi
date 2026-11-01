@@ -451,3 +451,13 @@ def delete_test(request, test_id):
         messages.success(request, 'Test o\'chirildi.')
 
     return redirect('online_urgat:teacher_dashboard')
+
+
+@login_required(login_url='/online-urgat/login/')
+def teacher_pending_view(request):
+    application = TeacherApplication.objects.filter(user=request.user).first()
+    if application and application.is_approved:
+        return redirect('online_urgat:teacher_dashboard')
+    return render(request, 'online_urgat/teacher_pending.html', {
+        'application': application,
+    })

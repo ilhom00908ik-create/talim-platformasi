@@ -1,0 +1,59 @@
+{% extends 'accounts/base.html' %}
+{% block title %}Dashboard - MathPlatform{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="glass rounded-[28px] p-6 sm:p-8">
+        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-200">Kabinet</p>
+                <h2 class="mt-2 text-3xl font-black text-white">Salom, {{ request.user.get_full_name|default:request.user.username }}</h2>
+            </div>
+            <a href="{% url 'profile' %}" class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10">Profil</a>
+        </div>
+    </div>
+
+    <div class="grid gap-5 md:grid-cols-3">
+        <div class="glass-soft rounded-[24px] p-5">
+            <div class="text-xs uppercase tracking-[0.2em] text-slate-400">Umumiy sinovlar</div>
+            <div class="mt-2 text-3xl font-black text-white">{{ stats.total_attempts }}</div>
+        </div>
+        <div class="glass-soft rounded-[24px] p-5">
+            <div class="text-xs uppercase tracking-[0.2em] text-slate-400">Eng yaxshi ball</div>
+            <div class="mt-2 text-3xl font-black text-emerald-300">{{ stats.best_score }}</div>
+        </div>
+        <div class="glass-soft rounded-[24px] p-5">
+            <div class="text-xs uppercase tracking-[0.2em] text-slate-400">O'rtacha foiz</div>
+            <div class="mt-2 text-3xl font-black text-cyan-300">{{ stats.average_percentage }}%</div>
+        </div>
+    </div>
+
+    <div class="glass-soft rounded-[28px] p-5 sm:p-6">
+        <div class="mb-4 flex items-center justify-between gap-3">
+            <h3 class="text-2xl font-bold text-white">Oxirgi natijalar</h3>
+            <a href="{% url 'test_history' %}" class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-white/10">Barcha tarix</a>
+        </div>
+
+        {% if attempts %}
+            <div class="space-y-3">
+                {% for attempt in attempts %}
+                    <div class="glass rounded-[22px] p-4">
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <div class="font-semibold text-white">{{ attempt.test.title }}</div>
+                                <div class="text-sm text-slate-400">{{ attempt.test.subject }}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-xl font-black text-emerald-300">{{ attempt.percentage|floatformat:1 }}%</div>
+                                <div class="text-xs text-slate-400">{{ attempt.score }}/{{ attempt.total_questions }}</div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="rounded-[22px] border border-white/10 bg-white/5 p-4 text-slate-300">Hozircha hech qanday test natijasi yo'q.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

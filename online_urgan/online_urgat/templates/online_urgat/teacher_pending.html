@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ariza ko'rib chiqilmoqda</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: radial-gradient(circle at top left, rgba(34,211,238,0.2), transparent 28%),
+                        radial-gradient(circle at bottom right, rgba(168,85,247,0.18), transparent 26%),
+                        linear-gradient(135deg, #020817 0%, #0f172a 45%, #111827 100%);
+        }
+        .glass {
+            background: rgba(15, 23, 42, 0.42);
+            border: 1px solid rgba(255,255,255,0.12);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            box-shadow: 0 25px 50px rgba(15, 23, 42, 0.35);
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white">
+    <div class="mx-auto flex min-h-screen max-w-3xl items-center justify-center px-4 py-10">
+        <div class="glass w-full rounded-[30px] p-7 sm:p-8">
+            <div class="mb-6 text-center">
+                <p class="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-200">Tasdiqlash</p>
+                <h1 class="mt-3 text-3xl font-black">Arizangiz ko'rib chiqilmoqda</h1>
+            </div>
+
+            <div class="rounded-2xl border border-yellow-400/30 bg-yellow-500/10 p-5 text-sm text-yellow-100">
+                {% if application %}
+                    <p class="font-medium">Salom, {{ request.user.get_full_name|default:request.user.username }}.</p>
+                    <p class="mt-2">O'qituvchi arizangiz admin tomonidan tekshirilmoqda. Iltimos, tasdiqlanishini kuting.</p>
+                {% else %}
+                    <p class="font-medium">Ariza topshirilmagan.</p>
+                    <p class="mt-2">O'qituvchi sifatida ariza yuborish uchun o'qituvchi kabinetiga o'ting.</p>
+                {% endif %}
+            </div>
+
+            <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+                <a href="{% url 'home' %}" class="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-center font-semibold text-white hover:bg-white/10">Bosh sahifa</a>
+                <a href="{% url 'online_urgat:teacher_register' %}" class="rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-3 text-center font-bold text-white shadow-lg shadow-cyan-500/20 hover:opacity-95">Ariza yuborish</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

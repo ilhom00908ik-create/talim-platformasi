@@ -1,13 +1,52 @@
-from django.shortcuts import render, get_object_or_404
-from django.contrib.auth import login, authenticate, logout
+import random
+
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
-from django.shortcuts import redirect
+from django.db.models import Avg, Count, Sum
+from django.shortcuts import get_object_or_404, redirect, render
+
+from online_urgat.models import Course, LiveLesson, TeacherApplication, Test, TestAttempt
+
 from .models import UserProfile
-from online_urgat.models import Test, LiveLesson, TestAttempt
-import random
-from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Sum, Avg
+
+
+def _get_user_stats(user):
+    if not user.is_authenticated:
+        return {
+            'total_attempts': 0,
+            'best_score': 0,
+            'average_percentage': 0,
+            'best_subject': '-',
+        }
+
+    user_attempts = TestAttempt.objects.filter(student=user)
+    stats = {
+        'total_attempts': user_attempts.count(),
+        'best_score': 0,
+        'average_percentage': 0,
+        'best_subject': '-',
+    }
+
+    if user_attempts.exists():
+        best_attempt = user_attempts.order_by('-score', '-percentage').first()
+        stats['best_score'] = best_attempt.score if best_attempt else 0
+        stats['average_percentage'] = round(
+            (user_attempts.aggregate(total=Sum('percentage'))['total'] or 0) / user_attempts.count(),
+            1,
+        )
+
+        best_subject = (
+            user_attempts.values('test__subject')
+            .annotate(avg_percentage=Avg('percentage'), attempts=Count('id'))
+            .order_by('-avg_percentage', 'test__subject')
+            .first()
+        )
+        if best_subject:
+            stats['best_subject'] = best_subject['test__subject']
+
+    return stats
 
 
 def home_view(request):
@@ -26,33 +65,21 @@ def home_view(request):
     )
 
     attempts = []
-    stats = {
-        'total_attempts': 0,
-        'best_score': 0,
-        'average_percentage': 0,
-        'best_subject': '-',
-    }
+    stats = _get_user_stats(request.user)
 
     if request.user.is_authenticated:
-        attempts = list(TestAttempt.objects.filter(student=request.user).select_related('test').order_by('-submitted_at')[:5])
+        attempts = list(
+            TestAttempt.objects.filter(student=request.user)
+            .select_related('test')
+            .order_by('-submitted_at')[:5]
+        )
 
-        user_attempts = TestAttempt.objects.filter(student=request.user)
-        stats['total_attempts'] = user_attempts.count()
-        if user_attempts.exists():
-            stats['best_score'] = user_attempts.order_by('-score', '-percentage').first().score
-            stats['average_percentage'] = round(
-                (user_attempts.aggregate(total=Sum('percentage'))['total'] or 0) / user_attempts.count(),
-                1,
-            )
-
-            best_subject = (
-                user_attempts.values('test__subject')
-                .annotate(avg_percentage=Avg('percentage'), attempts=Count('id'))
-                .order_by('-avg_percentage', 'test__subject')
-                .first()
-            )
-            if best_subject:
-                stats['best_subject'] = best_subject['test__subject']
+    stats.update({
+        'total_tests': tests.count(),
+        'total_live_lessons': live_lessons.count(),
+        'total_courses': Course.objects.filter(teacher__teacherapplication__is_approved=True).count(),
+        'total_teachers': TeacherApplication.objects.filter(is_approved=True).count(),
+    })
 
     return render(request, 'accounts/home.html', {
         'tests': tests,
@@ -63,14 +90,14 @@ def home_view(request):
 
 
 def register_view(request):
-    # Agar foydalanuvchi 1-bosqichdan o'tgan bo'lsa, uni parol oynasiga yo'naltiramiz
+    if request.user.is_authenticated:
+        return redirect('dashboard')
     if request.session.get('register_step') == 'password_step':
         return redirect('register_password')
-
+    
     if request.method == 'POST':
         action = request.POST.get('action')
 
-        # 1-qadam: Username va Email/Telefonni kiritib "Verify" bosilganda
         if action == 'send_code':
             username = request.POST.get('username')
             phone_or_email = request.POST.get('phone_or_email')
@@ -81,18 +108,16 @@ def register_view(request):
             if UserProfile.objects.filter(phone_or_email=phone_or_email).exists():
                 return render(request, 'accounts/register.html', {'error': 'Bu email yoki raqam allaqon roʻyxatdan oʻtgan!'})
 
-            # Tasdiqlash kodi generatsiya qilamiz
             code = str(random.randint(1000, 9999))
             request.session['reg_code'] = code
             request.session['reg_username'] = username
             request.session['reg_contact'] = phone_or_email
 
-            # Agar kiritilgan qiymat email bo'lsa, xat yuboramiz
             if '@' in phone_or_email:
                 try:
                     send_mail(
                         subject='Online Urgan - Tasdiqlash kodi',
-                        message=f'Sizning ro\'yxatdan o\'tish uchun tasdiqlash kodingiz: {code}',
+                        message=f"Sizning ro'yxatdan o'tish uchun tasdiqlash kodingiz: {code}",
                         from_email=None,
                         recipient_list=[phone_or_email],
                         fail_silently=False,
@@ -100,19 +125,16 @@ def register_view(request):
                 except Exception as e:
                     print(f"Email yuborishda xatolik: {e}")
             else:
-                # Telefon raqam bo'lsa - terminalga chiqaramiz (Eskiz API ni keyin ulab qo'yish mumkin)
                 print(f"\n[SMS YUBORILDI -> {phone_or_email}]: {code}\n")
 
-            # Test uchun terminalga har doim chiqarib turamiz
             print(f"\n[TASDIQLASH KODI]: {code}\n")
 
             return render(request, 'accounts/register.html', {
                 'step': 'verify_code',
                 'username': username,
-                'phone_or_email': phone_or_email
+                'phone_or_email': phone_or_email,
             })
 
-        # 2-qadam: Kodni kiritib "Tasdiqlash" bosilganda
         elif action == 'verify_code':
             entered_code = request.POST.get('code')
             saved_code = request.session.get('reg_code')
@@ -125,14 +147,15 @@ def register_view(request):
                     'step': 'verify_code',
                     'username': request.session.get('reg_username'),
                     'phone_or_email': request.session.get('reg_contact'),
-                    'error': 'Tasdiqlash kodi xato!'
+                    'error': 'Tasdiqlash kodi xato!',
                 })
 
     return render(request, 'accounts/register.html', {'step': 'initial'})
 
 
 def register_password_view(request):
-    # Himoya: agar 1-bosqich o'tilmagan bo'lsa, boshidan boshlatamiz
+    if request.user.is_authenticated:
+        return redirect('dashboard')
     if request.session.get('register_step') != 'password_step':
         return redirect('register')
 
@@ -147,6 +170,9 @@ def register_password_view(request):
         username = request.session.get('reg_username')
         phone_or_email = request.session.get('reg_contact')
 
+        if username is None or phone_or_email is None:
+            return redirect('register')
+
         email_val = phone_or_email if '@' in phone_or_email else ''
 
         user = User.objects.create_user(username=username, email=email_val, password=password)
@@ -155,22 +181,27 @@ def register_password_view(request):
             user=user,
             phone_or_email=phone_or_email,
             device_secret_key=device_secret_key,
-            is_verified=True
+            is_verified=True,
         )
 
-        # Sessiyalarni tozalaymiz
         for key in ['reg_username', 'reg_contact', 'reg_code', 'register_step']:
             if key in request.session:
                 del request.session[key]
 
-        # Avtomatik tizimga kirish
         login(request, user)
-        return redirect('home')
+        return redirect('dashboard')
 
     return render(request, 'accounts/register_password.html')
 
 
 def login_view(request):
+    if request.user.is_authenticated:
+        if TeacherApplication.objects.filter(user=request.user, is_approved=True).exists():
+            return redirect('online_urgat:teacher_dashboard')
+        if TeacherApplication.objects.filter(user=request.user).exists():
+            return redirect('online_urgat:teacher_pending')
+        return redirect('dashboard')
+
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
@@ -178,18 +209,23 @@ def login_view(request):
 
         user = authenticate(request, username=username, password=password)
         if user is not None:
-            profile, created = UserProfile.objects.get_or_create(user=user)
+            profile, _ = UserProfile.objects.get_or_create(user=user)
 
             if profile.device_secret_key and profile.device_secret_key != device_key:
                 return render(request, 'accounts/login.html', {
                     'error': 'Maxfiy kalit xato!',
-                    'username': username
+                    'username': username,
                 })
 
             login(request, user)
-            return redirect('home')
-        else:
-            return render(request, 'accounts/login.html', {'error': 'Foydalanuvchi nomi yoki parol xato!'})
+
+            if TeacherApplication.objects.filter(user=user, is_approved=True).exists():
+                return redirect('online_urgat:teacher_dashboard')
+            if TeacherApplication.objects.filter(user=user).exists():
+                return redirect('online_urgat:teacher_pending')
+            return redirect('dashboard')
+
+        return render(request, 'accounts/login.html', {'error': 'Foydalanuvchi nomi yoki parol xato!'})
 
     return render(request, 'accounts/login.html')
 
@@ -197,6 +233,29 @@ def login_view(request):
 def logout_view(request):
     logout(request)
     return redirect('home')
+
+
+@login_required
+def dashboard_view(request):
+    attempts = (
+        TestAttempt.objects.filter(student=request.user)
+        .select_related('test')
+        .order_by('-submitted_at')[:10]
+    )
+
+    return render(request, 'accounts/dashboard.html', {
+        'attempts': attempts,
+        'stats': _get_user_stats(request.user),
+    })
+
+
+@login_required
+def profile_view(request):
+    profile = UserProfile.objects.filter(user=request.user).first()
+    return render(request, 'accounts/profile.html', {
+        'profile': profile,
+        'user': request.user,
+    })
 
 
 def forgot_password_view(request):
@@ -210,7 +269,7 @@ def forgot_password_view(request):
             if '@' in contact:
                 send_mail(
                     subject='Online Urgan - Ma\'lumotlarni tiklash',
-                    message=f'Salom! Sizning foydalanuvchi nomingiz: {user.username}\nMaxfiy kalitingiz (Device Key): {profile.device_secret_key}\n\nIltimos, bu ma\'lumotlarni hech kimga bermang.',
+                    message=f"Salom! Sizning foydalanuvchi nomingiz: {user.username}\nMaxfiy kalitingiz (Device Key): {profile.device_secret_key}\n\nIltimos, bu ma'lumotlarni hech kimga bermang.",
                     from_email=None,
                     recipient_list=[contact],
                     fail_silently=False,
@@ -226,15 +285,21 @@ def forgot_password_view(request):
 
 
 def kurslar_view(request):
-    return render(request, 'accounts/kurslar.html')
+    courses = (
+        Course.objects.filter(teacher__teacherapplication__is_approved=True)
+        .select_related('teacher')
+        .order_by('-created_at')
+    )
+    return render(request, 'accounts/kurslar.html', {'courses': courses})
 
 
 def oqituvchilar_view(request):
-    return render(request, 'accounts/oqituvchilar.html')
-
-
-def mening_kurslarim_view(request):
-    return render(request, 'accounts/mening_kurslarim.html')
+    teachers = (
+        TeacherApplication.objects.filter(is_approved=True)
+        .select_related('user')
+        .order_by('-created_at')
+    )
+    return render(request, 'accounts/oqituvchilar.html', {'teachers': teachers})
 
 
 @login_required
@@ -312,3 +377,13 @@ def test_history_view(request):
         .order_by('-submitted_at')
     )
     return render(request, 'accounts/test_history.html', {'attempts': attempts})
+
+
+@login_required
+def mening_kurslarim_view(request):
+    courses = (
+        Course.objects.filter(teacher__teacherapplication__is_approved=True)
+        .select_related('teacher')
+        .order_by('-created_at')
+    )
+    return render(request, 'accounts/mening_kurslarim.html', {'courses': courses})
