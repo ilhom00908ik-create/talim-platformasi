@@ -6,25 +6,30 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.enums import ParseMode
 
 # 1. Django muhitini sozlash
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
 django.setup()
 
 from online_urgat.models import TeacherApplication
 
-TOKEN = "8381737778:AAGiVBEtSxQPXisuzX88O8fcLGdHYx5x1kk"
-ADMIN_ID = 7389059494
+TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '8381737778:AAGiVBEtSxQPXisuzX88O8fcLGdHYx5x1kk')
+ADMIN_ID = int(os.getenv('ADMIN_TELEGRAM_ID', '7389059494'))
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 
 def approve_application_sync(app_id):
-    teacher_app = TeacherApplication.objects.get(id=app_id)
+    teacher_app = TeacherApplication.objects.select_related('user').get(id=app_id)
     teacher_app.is_approved = True
+    teacher_app.user.is_staff = True
+    teacher_app.user.save(update_fields=['is_staff'])
+
+    profile = getattr(teacher_app.user, 'userprofile', None) or getattr(teacher_app.user, 'profile', None)
+    if profile is not None:
+        profile.is_verified = True
+        profile.save(update_fields=['is_verified'])
+
     teacher_app.save(update_fields=['is_approved'])
-    user = teacher_app.user
-    user.is_staff = True
-    user.save(update_fields=['is_staff'])
     return teacher_app
 
 

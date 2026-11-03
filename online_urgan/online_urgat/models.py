@@ -18,6 +18,17 @@ class TeacherApplication(models.Model):
     def __str__(self):
         return f"{self.user.username} - ariza"
 
+    def approve(self):
+        self.is_approved = True
+        self.user.is_staff = True
+        self.user.save(update_fields=['is_staff'])
+        self.save(update_fields=['is_approved'])
+
+        profile = getattr(self.user, 'userprofile', None) or getattr(self.user, 'profile', None)
+        if profile is not None:
+            profile.is_verified = True
+            profile.save(update_fields=['is_verified'])
+
 
 class TeacherCertificate(models.Model):
     teacher = models.ForeignKey(TeacherApplication, on_delete=models.CASCADE, related_name='certificates')

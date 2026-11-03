@@ -8,13 +8,20 @@ from .models import LiveLesson
 
 class LiveLessonConsumer(AsyncWebsocketConsumer):
     async def connect(self):
+        user = self.scope.get('user')
+        if not user or not user.is_authenticated:
+            await self.close()
+            return
+
         self.lesson_id = self.scope['url_route']['kwargs']['lesson_id']
         self.room_group_name = f'live_lesson_{self.lesson_id}'
-
         self.lesson = await self.get_lesson(self.lesson_id)
         if not self.lesson:
             await self.close()
             return
+
+        self.user_name = user.get_full_name() or user.username
+        self.user_role = 'teacher' if user == self.lesson.teacher else 'student'
 
         await self.channel_layer.group_add(
             self.room_group_name,
@@ -22,15 +29,46 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
         )
         await self.accept()
 
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                'type': 'broadcast_message',
+                'payload': {
+                    'type': 'presence',
+                    'sender': self.user_name,
+                    'sender_id': user.id,
+                    'role': self.user_role,
+                    'message': f'{self.user_name} darsxona bilan boglandi.',
+                    'room': self.room_group_name,
+                },
+            },
+        )
+
     @database_sync_to_async
     def get_lesson(self, lesson_id):
         return LiveLesson.objects.filter(id=lesson_id).first()
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(
-            self.room_group_name,
-            self.channel_name,
-        )
+        if hasattr(self, 'room_group_name'):
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'broadcast_message',
+                    'payload': {
+                        'type': 'presence',
+                        'sender': self.user_name,
+                        'sender_id': getattr(self.scope.get('user'), 'id', None),
+                        'role': self.user_role,
+                        'message': f'{self.user_name} darsxonadan chiqdi.',
+                        'room': self.room_group_name,
+                    },
+                    'sender_id': getattr(self.scope.get('user'), 'id', None),
+                },
+            )
+            await self.channel_layer.group_discard(
+                self.room_group_name,
+                self.channel_name,
+            )
 
     async def receive(self, text_data):
         if not text_data:
@@ -42,28 +80,52 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
             return
 
         message_type = data.get('type')
+        if not message_type:
+            return
+
+        sender_id = data.get('sender_id') or getattr(self.scope.get('user'), 'id', None)
         payload = {
             'type': message_type,
-            'sender': data.get('sender') or 'Anonymous',
-            'role': data.get('role', 'student'),
+            'sender': data.get('sender') or (self.user_name if hasattr(self, 'user_name') else 'Anonymous'),
+            'sender_id': sender_id,
+            'role': data.get('role', self.user_role if hasattr(self, 'user_role') else 'student'),
             'message': data.get('message'),
             'offer': data.get('offer'),
             'answer': data.get('answer'),
             'candidate': data.get('candidate'),
+            'target_user_id': data.get('target_user_id'),
             'room': data.get('room') or self.room_group_name,
+        }
+
+        event = {
+            'type': 'broadcast_message',
+            'payload': payload,
+            'sender_id': sender_id,
+            'target_user_id': data.get('target_user_id'),
         }
 
         await self.channel_layer.group_send(
             self.room_group_name,
-            {
-                'type': 'broadcast_message',
-                'payload': payload,
-            }
+            event,
         )
 
     async def broadcast_message(self, event):
-        payload = event['payload']
-        if payload.get('type') == 'chat-message' and payload.get('message'):
+        payload = event.get('payload', {})
+        sender_id = event.get('sender_id')
+        target_user_id = event.get('target_user_id')
+
+        if target_user_id is not None and target_user_id != getattr(self.scope.get('user'), 'id', None):
+            return
+
+        if payload.get('type') in {'webrtc-offer', 'webrtc-answer', 'webrtc-candidate'} and sender_id == getattr(self.scope.get('user'), 'id', None):
+            return
+
+        if payload.get('type') == 'chat-message' and payload.get('message') and payload.get('sender') is not None:
             await self.send(text_data=json.dumps(payload))
             return
+
+        if payload.get('type') == 'presence':
+            await self.send(text_data=json.dumps(payload))
+            return
+
         await self.send(text_data=json.dumps(payload))

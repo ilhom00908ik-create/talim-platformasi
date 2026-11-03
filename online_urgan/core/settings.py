@@ -18,6 +18,15 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR.parent / '.env')
 
+
+def _split_env_list(value, fallback):
+    if value is None:
+        return list(fallback)
+    if isinstance(value, (list, tuple)):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [item.strip() for item in str(value).split(',') if item.strip()]
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
@@ -27,21 +36,57 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-0su_ly#z#fjb3#1r)=3@#tdxn-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() in {'1', 'true', 'yes', 'on'}
 
-# Xostlar va domenlarni to'g'ri sozlash (Railway domeni qat'iy kiritildi)
-ALLOWED_HOSTS = [
+# Development / LAN / phone access for local network testing and Railway deployment.
+# If you want to allow every host in a local environment, set ALLOWED_HOSTS='*'.
+DEFAULT_ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     '0.0.0.0',
-    'talim-platformasi-production-a63c.up.railway.app',
-    '.railway.app',
-    '.up.railway.app',
+    '::1',
+    '10.0.2.2',
+    '10.0.0.0',
+    '192.168.0.0',
+    '192.168.1.0',
+    '172.16.0.0',
+    '172.31.0.0',
+    '*',
 ]
 
-# CSRF uchun ishonchli domenlar ro'yxati
-CSRF_TRUSTED_ORIGINS = [
-    'https://talim-platformasi-production-a63c.up.railway.app',
+allowed_hosts_value = os.getenv('ALLOWED_HOSTS')
+if allowed_hosts_value is not None and str(allowed_hosts_value).strip() == '*':
+    ALLOWED_HOSTS = ['*']
+elif allowed_hosts_value:
+    ALLOWED_HOSTS = _split_env_list(allowed_hosts_value, DEFAULT_ALLOWED_HOSTS)
+else:
+    ALLOWED_HOSTS = ['*']
+
+if DEBUG:
+    ALLOWED_HOSTS = ['*']
+
+DEFAULT_CSRF_ORIGINS = [
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+    'http://0.0.0.0:8000',
+    'http://10.0.2.2:8000',
+    'http://10.0.0.0:8000',
+    'http://192.168.0.0:8000',
+    'http://192.168.1.0:8000',
+    'http://172.16.0.0:8000',
+    'http://172.31.0.0:8000',
+    'http://*:8000',
+    'https://localhost:8000',
+    'https://127.0.0.1:8000',
+    'https://0.0.0.0:8000',
+    'https://10.0.2.2:8000',
+    'https://10.0.0.0:8000',
+    'https://192.168.0.0:8000',
+    'https://192.168.1.0:8000',
+    'https://172.16.0.0:8000',
+    'https://172.31.0.0:8000',
     'https://*.railway.app',
+    'https://*.up.railway.app',
 ]
+CSRF_TRUSTED_ORIGINS = _split_env_list(os.getenv('CSRF_TRUSTED_ORIGINS'), DEFAULT_CSRF_ORIGINS)
 
 # Proksi va Cookie xavfsizlik sozlamalari (Railway uchun moslashtirilgan)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

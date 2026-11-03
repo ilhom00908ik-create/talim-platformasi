@@ -53,6 +53,30 @@
                             <a href="{{ lesson.stream_url }}" target="_blank" rel="noopener" class="mt-4 inline-flex rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-100 hover:bg-rose-500/20">Ulanish havolasi</a>
                         {% endif %}
                     </div>
+
+                    <div class="mt-5 rounded-[22px] border border-dashed border-cyan-400/20 bg-cyan-500/5 p-4 text-sm text-slate-300">
+                        {% if is_teacher %}
+                            Siz dars o'qituvchisiz. O'quvchilar bilan chat va video/ovoz ulanishi ishlaydi.
+                        {% else %}
+                            Dars boshlanganda video/ovoz va chat oynasi avtomatik ravishda ishlaydi.
+                        {% endif %}
+                    </div>
+
+                    <div class="mt-5 grid gap-4 sm:grid-cols-2">
+                        <div class="rounded-[20px] border border-white/10 bg-slate-950/40 p-3">
+                            <div class="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-200">Sizning kamera</div>
+                            <video id="localVideo" autoplay muted playsinline class="h-52 w-full rounded-xl object-cover bg-slate-900"></video>
+                        </div>
+                        <div class="rounded-[20px] border border-white/10 bg-slate-950/40 p-3">
+                            <div class="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200">Dars ishtirokchisi</div>
+                            <video id="remoteVideo" autoplay playsinline class="h-52 w-full rounded-xl object-cover bg-slate-900"></video>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        <button id="startCallBtn" type="button" class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-bold text-white">Darsni yoqish</button>
+                        <button id="toggleMicBtn" type="button" class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100">Mikrofon o'chirish</button>
+                    </div>
                 </div>
             </div>
 
@@ -79,68 +103,197 @@
     const sendChatBtn = document.getElementById('sendChat');
     const copyBtn = document.getElementById('copyRoomLink');
     const liveStatus = document.getElementById('liveStatus');
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const startCallBtn = document.getElementById('startCallBtn');
+    const toggleMicBtn = document.getElementById('toggleMicBtn');
 
     const lessonId = {{ lesson.id }};
-    const username = '{{ request.user.get_full_name|default:request.user.username }}';
-    const userRole = {{ is_teacher|yesno:"'teacher','student' }};
-    const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${wsScheme}://${window.location.host}/ws/live/${lessonId}/`);
+    const username = '{{ request.user.get_full_name|default:request.user.username|escapejs }}';
+    const userRole = '{{ is_teacher|yesno:"teacher,student" }}';
+    const socketUrl = (() => {
+        try {
+            const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            return `${protocol}://${window.location.host}/ws/live/${lessonId}/`;
+        } catch (error) {
+            console.warn('WebSocket URL yaratishda xatolik:', error);
+            return null;
+        }
+    })();
+    const socket = socketUrl ? new WebSocket(socketUrl) : null;
 
-    const addChatEntry = (message, sender = 'System') => {
-        const entry = document.createElement('div');
-        entry.className = 'rounded-xl border border-white/10 bg-white/5 px-3 py-2';
-        const label = sender === username ? 'Siz' : sender;
-        entry.innerHTML = `<div class="mb-1 text-[10px] uppercase tracking-[0.2em] text-cyan-200">${label}</div><div class="text-slate-100">${message}</div>`;
-        chatMessages.appendChild(entry);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+    let localStream = null;
+    let peerConnection = null;
+    let mediaEnabled = true;
+    let isCaller = userRole === 'teacher';
+
+    const rtcConfig = {
+        iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }]
     };
 
-    const sendChat = () => {
-        const message = chatInput.value.trim();
-        if (!message) return;
-        addChatEntry(message, username);
+    const ensurePeerConnection = () => {
+        if (!peerConnection) {
+            peerConnection = new RTCPeerConnection(rtcConfig);
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate && socket && socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({
+                        type: 'webrtc-candidate',
+                        room: `live_lesson_${lessonId}`,
+                        sender: username,
+                        role: userRole,
+                        sender_id: '{{ request.user.id }}',
+                        target_user_id: null,
+                        candidate: event.candidate.toJSON()
+                    }));
+                }
+            };
+
+            peerConnection.ontrack = (event) => {
+                if (event.streams && event.streams[0]) {
+                    remoteVideo.srcObject = event.streams[0];
+                }
+            };
+        }
+
+        return peerConnection;
+    };
+
+    const startLocalMedia = async () => {
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            });
+            localVideo.srcObject = localStream;
+            if (peerConnection) {
+                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            }
+            liveStatus.textContent = isCaller ? 'You are live' : 'Teacher connected';
+        } catch (error) {
+            console.error('Media olishda xatolik:', error);
+            liveStatus.textContent = 'Kamera/mikrofon ishlayapti emas';
+            addChatEntry('Kamera yoki mikrofon ruxsatini bersangiz, video/ovoz ulanishi ishlaydi.', 'System');
+        }
+    };
+
+    const createOffer = async () => {
+        const pc = ensurePeerConnection();
+        if (!localStream) {
+            await startLocalMedia();
+        }
+        if (localStream) {
+            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+        }
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
         socket.send(JSON.stringify({
-            type: 'chat-message',
+            type: 'webrtc-offer',
             room: `live_lesson_${lessonId}`,
             sender: username,
             role: userRole,
-            message
+            sender_id: '{{ request.user.id }}',
+            offer: offer,
         }));
-        chatInput.value = '';
     };
 
-    socket.onopen = () => {
-        liveStatus.textContent = 'WebSocket ulandi';
-        addChatEntry('Chatga xush kelibsiz!', 'System');
-    };
+    const handleRemoteSignal = async (payload) => {
+        if (!payload || !payload.sender || payload.sender === username) return;
 
-    socket.onmessage = (event) => {
-        const payload = JSON.parse(event.data);
-        if (payload.type === 'chat-message' && payload.message && payload.sender !== username) {
-            addChatEntry(payload.message, payload.sender || 'Oquvchi');
+        const pc = ensurePeerConnection();
+        if (payload.type === 'webrtc-offer' && payload.offer) {
+            if (!localStream) {
+                await startLocalMedia();
+            }
+            if (localStream) {
+                localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+            }
+            await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            socket.send(JSON.stringify({
+                type: 'webrtc-answer',
+                room: `live_lesson_${lessonId}`,
+                sender: username,
+                role: userRole,
+                sender_id: '{{ request.user.id }}',
+                target_user_id: payload.sender_id,
+                answer: answer
+            }));
+            return;
+        }
+
+        if (payload.type === 'webrtc-answer' && payload.answer) {
+            await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
+            return;
+        }
+
+        if (payload.type === 'webrtc-candidate' && payload.candidate) {
+            try {
+                await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+            } catch (error) {
+                console.error('ICE candidat qo‘shishda xatolik:', error);
+            }
         }
     };
 
-    socket.onerror = (event) => {
-        console.error('WebSocket error:', event);
-        liveStatus.textContent = 'Chat uzildi';
-    };
+    if (socket) {
+        socket.onopen = () => {
+            liveStatus.textContent = {% if is_live %}'Jonli dars faol'{% else %}'Dars tayyorlanmoqda'{% endif %};
+            addChatEntry('Chatga xush kelibsiz!', 'System');
+            if (userRole === 'teacher') {
+                startLocalMedia();
+            }
+        };
 
-    sendChatBtn.addEventListener('click', sendChat);
-    chatInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-            sendChat();
+        socket.onmessage = (event) => {
+            try {
+                const payload = JSON.parse(event.data);
+                if (payload.type === 'presence') {
+                    addChatEntry(payload.message, payload.sender || 'System');
+                    return;
+                }
+                if (payload.type === 'chat-message' && payload.message && payload.sender !== username) {
+                    addChatEntry(payload.message, payload.sender || 'Oquvchi');
+                    return;
+                }
+                if (payload.type.startsWith('webrtc-')) {
+                    handleRemoteSignal(payload);
+                }
+            } catch (error) {
+                console.error('WebSocket payload parse error:', error);
+            }
+        };
+
+        socket.onerror = (event) => {
+            console.error('WebSocket error:', event);
+            liveStatus.textContent = 'Chat uzildi';
+        };
+
+        socket.onclose = () => {
+            liveStatus.textContent = 'Ulanish uzildi';
+        };
+    }
+
+    startCallBtn.addEventListener('click', async () => {
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+            addChatEntry('WebSocket mavjud emas. Dars xonasiga qayta ulanib ko‘ring.', 'System');
+            return;
         }
+        await createOffer();
     });
 
-    copyBtn.addEventListener('click', async () => {
-        try {
-            await navigator.clipboard.writeText(window.location.href);
-            copyBtn.textContent = 'Link nusxalandi';
-        } catch (error) {
-            copyBtn.textContent = 'Nusxalab bo\'lmadi';
-        }
+    toggleMicBtn.addEventListener('click', () => {
+        if (!localStream) return;
+        mediaEnabled = !mediaEnabled;
+        localStream.getAudioTracks().forEach(track => {
+            track.enabled = mediaEnabled;
+        });
+        toggleMicBtn.textContent = mediaEnabled ? 'Mikrofon o\'chirish' : 'Mikrofon yoqish';
     });
+
+    if (userRole !== 'teacher') {
+        startLocalMedia();
+    }
 </script>
 </body>
 </html>

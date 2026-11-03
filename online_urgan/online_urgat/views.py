@@ -41,8 +41,8 @@ def teacher_register_view(request):
             teacher_app.save()
 
             files = request.FILES.getlist('certificate_pdf')
-            for f in files:
-                TeacherCertificate.objects.create(teacher=teacher_app, file=f)
+            for file in files:
+                TeacherCertificate.objects.create(teacher=teacher_app, file=file)
 
             send_telegram_notification(teacher_app)
             return redirect('online_urgat:teacher_pending')
@@ -83,9 +83,9 @@ def create_live_lesson(request):
         return redirect('online_urgat:teacher_pending')
 
     if request.method == 'POST':
-        title = request.POST.get('title', '').strip()
-        subject = request.POST.get('subject', '').strip()
-        stream_url = request.POST.get('stream_url', '').strip()
+        title = (request.POST.get('title') or '').strip()
+        subject = (request.POST.get('subject') or '').strip()
+        stream_url = (request.POST.get('stream_url') or '').strip()
 
         if title:
             LiveLesson.objects.create(
@@ -157,7 +157,7 @@ def send_telegram_notification(teacher_app):
     certificates = TeacherCertificate.objects.filter(teacher=teacher_app)
 
     try:
-        if teacher_app.photo and teacher_app.photo.path:
+        if teacher_app.photo and hasattr(teacher_app.photo, 'path') and teacher_app.photo.path:
             photo_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
             with open(teacher_app.photo.path, 'rb') as photo_file:
                 payload = {
@@ -165,7 +165,7 @@ def send_telegram_notification(teacher_app):
                     "caption": text,
                     "reply_markup": json.dumps(reply_markup),
                 }
-                response = requests.post(photo_url, data=payload, files={"photo": photo_file})
+                response = requests.post(photo_url, data=payload, files={"photo": photo_file}, timeout=20)
                 print("Foto yuborish javobi:", response.json())
         else:
             msg_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -174,32 +174,34 @@ def send_telegram_notification(teacher_app):
                 "text": text,
                 "reply_markup": json.dumps(reply_markup),
             }
-            response = requests.post(msg_url, json=payload)
+            response = requests.post(msg_url, json=payload, timeout=20)
             print("Xabar yuborish javobi:", response.json())
-    except Exception as e:
-        print(f"Asosiy o'qituvchi ma'lumotini yuborishda xatolik: {e}")
+    except Exception as exc:
+        print(f"Asosiy o'qituvchi ma'lumotini yuborishda xatolik: {exc}")
 
     if certificates.exists():
         for cert in certificates:
             try:
                 file_path = cert.file.path
-                with open(file_path, 'rb') as f:
+                with open(file_path, 'rb') as file_handle:
                     if file_path.lower().endswith(('jpg', 'jpeg', 'png', 'webp')):
                         doc_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
                         requests.post(
                             doc_url,
                             data={"chat_id": admin_chat_id, "caption": "O'qituvchining sertifikati / diplomi"},
-                            files={"photo": f},
+                            files={"photo": file_handle},
+                            timeout=20,
                         )
                     else:
                         doc_url = f"https://api.telegram.org/bot{bot_token}/sendDocument"
                         requests.post(
                             doc_url,
                             data={"chat_id": admin_chat_id, "caption": "Sertifikat / Hujjat (Fayl)"},
-                            files={"document": f},
+                            files={"document": file_handle},
+                            timeout=20,
                         )
-            except Exception as e:
-                print(f"Sertifikatni yuborishda xatolik: {e}")
+            except Exception as exc:
+                print(f"Sertifikatni yuborishda xatolik: {exc}")
 
 
 @login_required(login_url='/online-urgat/login/')
@@ -227,16 +229,17 @@ def add_course(request):
         return redirect('online_urgat:teacher_pending')
 
     if request.method == 'POST':
-        title = request.POST.get('title')
+        title = (request.POST.get('title') or '').strip()
         description = request.POST.get('description')
         price = request.POST.get('price', 0)
 
-        Course.objects.create(
-            teacher=request.user,
-            title=title,
-            description=description,
-            price=price,
-        )
+        if title:
+            Course.objects.create(
+                teacher=request.user,
+                title=title,
+                description=description,
+                price=price,
+            )
     return redirect('online_urgat:teacher_dashboard')
 
 
@@ -354,15 +357,24 @@ def add_question_bulk_to_test(request, test_id):
 
 @login_required(login_url='/online-urgat/login/')
 def join_live_lesson(request, lesson_id):
-    lesson = get_object_or_404(LiveLesson, id=lesson_id)
-    is_teacher = (request.user == lesson.teacher)
+    try:
+        lesson = LiveLesson.objects.select_related('teacher').get(id=lesson_id)
+    except LiveLesson.DoesNotExist:
+        messages.error(request, 'Bu dars topilmadi.')
+        return redirect('online_urgat:teacher_dashboard')
+
+    is_teacher = bool(request.user.is_authenticated and request.user == lesson.teacher)
+
+    if lesson.stream_url and not is_teacher and not lesson.is_live:
+        messages.info(request, 'Dars hali boshlanmagan. O‘qituvchi darsni boshlagach, darsxona ochiladi.')
+        return redirect('online_urgat:teacher_dashboard')
 
     if lesson.stream_url and not is_teacher:
         return redirect(lesson.stream_url)
 
     return render(request, 'online_urgat/live_join.html', {
         'lesson': lesson,
-        'is_live': lesson.is_live,
+        'is_live': bool(lesson.is_live),
         'is_teacher': is_teacher,
     })
 
@@ -372,15 +384,18 @@ def start_live_lesson(request, lesson_id):
     if not teacher_allowed(request.user):
         return redirect('online_urgat:teacher_pending')
 
-    lesson = get_object_or_404(LiveLesson, id=lesson_id, teacher=request.user)
+    try:
+        lesson = LiveLesson.objects.get(id=lesson_id, teacher=request.user)
+    except LiveLesson.DoesNotExist:
+        messages.error(request, 'Dars topilmadi yoki sizga tegishli emas.')
+        return redirect('online_urgat:teacher_dashboard')
+
     lesson.is_live = True
     lesson.started_at = timezone.now()
     lesson.save(update_fields=['is_live', 'started_at'])
 
-    if request.method in ['GET', 'POST']:
-        return redirect('online_urgat:join_live_lesson', lesson_id=lesson.id)
-
-    return redirect('online_urgat:teacher_dashboard')
+    messages.success(request, 'Jonli dars muvaffaqiyatli ishga tushdi.')
+    return redirect('online_urgat:join_live_lesson', lesson_id=lesson.id)
 
 
 @login_required(login_url='/online-urgat/login/')
@@ -388,7 +403,12 @@ def stop_live_lesson(request, lesson_id):
     if not teacher_allowed(request.user):
         return redirect('online_urgat:teacher_pending')
 
-    lesson = get_object_or_404(LiveLesson, id=lesson_id, teacher=request.user)
+    try:
+        lesson = LiveLesson.objects.get(id=lesson_id, teacher=request.user)
+    except LiveLesson.DoesNotExist:
+        messages.error(request, 'Dars topilmadi yoki sizga tegishli emas.')
+        return redirect('online_urgat:teacher_dashboard')
+
     lesson.is_live = False
     lesson.started_at = None
     lesson.save(update_fields=['is_live', 'started_at'])
