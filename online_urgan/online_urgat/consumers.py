@@ -15,13 +15,16 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
 
         self.lesson_id = self.scope['url_route']['kwargs']['lesson_id']
         self.room_group_name = f'live_lesson_{self.lesson_id}'
+
         self.lesson = await self.get_lesson(self.lesson_id)
         if not self.lesson:
             await self.close()
             return
 
+        self.user_id = user.id
         self.user_name = user.get_full_name() or user.username
-        self.user_role = 'teacher' if user == self.lesson.teacher else 'student'
+        self.is_teacher = user.id == self.lesson.teacher_id
+        self.user_role = 'teacher' if self.is_teacher else 'student'
 
         await self.channel_layer.group_add(
             self.room_group_name,
@@ -36,7 +39,7 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
                 'payload': {
                     'type': 'presence',
                     'sender': self.user_name,
-                    'sender_id': user.id,
+                    'sender_id': self.user_id,
                     'role': self.user_role,
                     'message': f'{self.user_name} darsxona bilan boglandi.',
                     'room': self.room_group_name,
@@ -46,7 +49,7 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_lesson(self, lesson_id):
-        return LiveLesson.objects.filter(id=lesson_id).first()
+        return LiveLesson.objects.select_related('teacher').filter(id=lesson_id).first()
 
     async def disconnect(self, close_code):
         if hasattr(self, 'room_group_name'):
@@ -56,13 +59,12 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
                     'type': 'broadcast_message',
                     'payload': {
                         'type': 'presence',
-                        'sender': self.user_name,
-                        'sender_id': getattr(self.scope.get('user'), 'id', None),
-                        'role': self.user_role,
-                        'message': f'{self.user_name} darsxonadan chiqdi.',
+                        'sender': getattr(self, 'user_name', 'System'),
+                        'sender_id': getattr(self, 'user_id', None),
+                        'role': getattr(self, 'user_role', 'student'),
+                        'message': f"{getattr(self, 'user_name', 'Foydalanuvchi')} darsxonadan chiqdi.",
                         'room': self.room_group_name,
                     },
-                    'sender_id': getattr(self.scope.get('user'), 'id', None),
                 },
             )
             await self.channel_layer.group_discard(
@@ -86,9 +88,9 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
         sender_id = data.get('sender_id') or getattr(self.scope.get('user'), 'id', None)
         payload = {
             'type': message_type,
-            'sender': data.get('sender') or (self.user_name if hasattr(self, 'user_name') else 'Anonymous'),
+            'sender': data.get('sender') or getattr(self, 'user_name', 'Anonymous'),
             'sender_id': sender_id,
-            'role': data.get('role', self.user_role if hasattr(self, 'user_role') else 'student'),
+            'role': data.get('role', getattr(self, 'user_role', 'student')),
             'message': data.get('message'),
             'offer': data.get('offer'),
             'answer': data.get('answer'),
@@ -117,15 +119,8 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
         if target_user_id is not None and target_user_id != getattr(self.scope.get('user'), 'id', None):
             return
 
-        if payload.get('type') in {'webrtc-offer', 'webrtc-answer', 'webrtc-candidate'} and sender_id == getattr(self.scope.get('user'), 'id', None):
-            return
-
-        if payload.get('type') == 'chat-message' and payload.get('message') and payload.get('sender') is not None:
-            await self.send(text_data=json.dumps(payload))
-            return
-
-        if payload.get('type') == 'presence':
-            await self.send(text_data=json.dumps(payload))
-            return
+        if payload.get('type') in {'webrtc-offer', 'webrtc-answer', 'webrtc-candidate'}:
+            if sender_id == getattr(self.scope.get('user'), 'id', None):
+                return
 
         await self.send(text_data=json.dumps(payload))
