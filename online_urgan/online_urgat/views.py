@@ -368,25 +368,25 @@ def join_live_lesson(request, lesson_id):
         messages.error(request, 'Bu dars topilmadi.')
         return redirect('online_urgat:teacher_dashboard')
 
-    is_teacher = bool(request.user.is_authenticated and request.user == lesson.teacher)
+    user = request.user
+    is_teacher = bool(user.is_authenticated and user == lesson.teacher)
 
-    if is_teacher:
+    if not user.is_authenticated:
+        messages.error(request, 'Jonli darsga kirish uchun tizimga kiring.')
+        return redirect('online_urgat:login')
+
+    # Oddiy autentifikatsiya qilingan foydalanuvchi darsga qo'shila olishi kerak.
+    if not is_teacher:
         allowed = True
-    elif lesson.course_id is None:
-        allowed = False
     else:
-        allowed = lesson.user_can_join(request.user)
+        allowed = True
 
     if not allowed:
-        messages.error(request, 'Bu darsga qatnashish uchun kursga yozilgan bo\'lishingiz kerak.')
+        messages.error(request, 'Bu darsga qo\'shilish huquqi mavjud emas.')
         return redirect('accounts:dashboard') if hasattr(request, 'user') else redirect('online_urgat:teacher_dashboard')
 
-    if lesson.stream_url and not is_teacher and not lesson.is_live:
+    if not is_teacher and not lesson.is_live:
         messages.info(request, 'Dars hali boshlanmagan. O‘qituvchi darsni boshlagach, darsxona ochiladi.')
-        return redirect('accounts:dashboard')
-
-    if lesson.stream_url and not is_teacher:
-        return redirect(lesson.stream_url)
 
     return render(request, 'online_urgat/live_join.html', {
         'lesson': lesson,

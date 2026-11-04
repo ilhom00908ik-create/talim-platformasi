@@ -147,8 +147,11 @@ class LiveLesson(models.Model):
     def user_can_join(self, user):
         if not user or not user.is_authenticated:
             return False
-        if user == self.teacher:
+
+        if user == self.teacher or getattr(user, 'is_staff', False):
             return True
-        if self.course_id is None:
-            return False
-        return Enrollment.objects.filter(user=user, course=self.course, is_active=True).exists()
+
+        # Oddiy ro'yxatdan o'tgan foydalanuvchilar uchun jonli darsga qo'shilish ruxsat beriladi.
+        # O'qituvchi bo'lish shart emas. Kursga yozilgan bo'lsin yoki yo'q bo'lsin, autentifikatsiya
+        # bo'lgan foydalanuvchi darsga kirishi mumkin.
+        return True

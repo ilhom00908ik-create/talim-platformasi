@@ -67,6 +67,7 @@
             object-fit: cover;
             display: block;
             background: #020817;
+            border-radius: 0;
         }
 
         .video-overlay {
@@ -97,6 +98,7 @@
             object-fit: cover;
             display: block;
             background: #020817;
+            border-radius: 0;
         }
 
         .floating-window .toolbar {
@@ -149,6 +151,7 @@
             height: 100%;
             object-fit: cover;
             background: #020817;
+            border-radius: 0;
         }
 
         .participant-meta {
@@ -227,6 +230,29 @@
             }
             .spotlight-grid { grid-template-columns: 1fr; }
         }
+
+        .student-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+            justify-content: flex-start;
+        }
+
+        .student-controls .action-btn {
+            min-width: 180px;
+        }
+
+        .student-controls .action-btn.hidden-if-teacher {
+            display: inline-flex;
+        }
+
+        @media (max-width: 640px) {
+            .student-controls .action-btn {
+                width: 100%;
+                min-width: 0;
+            }
+        }
     </style>
 </head>
 <body class="min-h-screen text-white">
@@ -274,10 +300,13 @@
                     </div>
 
                     <div class="controls-bar">
-                        <div class="control-group">
-                            <button id="startCallBtn" type="button" class="action-btn primary">Darsni yoqish</button>
-                            <button id="shareScreenBtn" type="button" class="action-btn">Ekranni ulashish</button>
-                            <button id="toggleMicBtn" type="button" class="action-btn">Mikrofon o'chirish</button>
+                        <div class="student-controls">
+                            {% if is_teacher %}
+                                <button id="startCallBtn" type="button" class="action-btn primary">Darsni yoqish</button>
+                            {% endif %}
+                            <button id="leaveRoomBtn" type="button" class="action-btn danger">Darsdan chiqish</button>
+                            <button id="shareScreenBtn" type="button" class="action-btn">Ekranni uzatish</button>
+                            <button id="toggleMicBtn" type="button" class="action-btn">Mikrofonni yoqish / o'chirish</button>
                         </div>
                         <div class="control-group">
                             <button id="toggleGridBtn" type="button" class="action-btn">Grid</button>
@@ -323,6 +352,7 @@
     const participantList = document.getElementById('participantList');
     const participantGrid = document.getElementById('participantGrid');
     const participantCount = document.getElementById('participantCount');
+    const leaveRoomBtn = document.getElementById('leaveRoomBtn');
     const startCallBtn = document.getElementById('startCallBtn');
     const shareScreenBtn = document.getElementById('shareScreenBtn');
     const toggleMicBtn = document.getElementById('toggleMicBtn');
@@ -648,6 +678,23 @@
         }
     };
 
+    const leaveRoom = () => {
+        if (localStream) {
+            localStream.getTracks().forEach((track) => track.stop());
+        }
+        if (screenStream) {
+            screenStream.getTracks().forEach((track) => track.stop());
+        }
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.close();
+        }
+        if (peerConnection) {
+            peerConnection.close();
+            peerConnection = null;
+        }
+        window.location.href = '/online-urgat/dashboard/';
+    };
+
     if (socket) {
         socket.onopen = () => {
             liveStatus.textContent = {% if is_live %}'Jonli dars faol'{% else %}'Dars tayyorlanmoqda'{% endif %};
@@ -741,6 +788,8 @@
             copyBtn.textContent = 'Nusxalab bo\'lmadi';
         }
     });
+
+    leaveRoomBtn.addEventListener('click', leaveRoom);
 
     if (userRole !== 'teacher') {
         startLocalMedia();

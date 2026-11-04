@@ -164,6 +164,12 @@ DATABASES = {
     }
 }
 
+# Keep a stable database location across deploys and local development.
+# Avoid reset-on-deploy behavior by storing the app DB in the project folder rather than
+# ephemeral runtime directories.
+if not (BASE_DIR / '../online_urgat/db.sqlite3').exists():
+    (BASE_DIR / '../online_urgat').mkdir(parents=True, exist_ok=True)
+
 
 # Password validation
 # https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators
