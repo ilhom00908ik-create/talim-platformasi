@@ -10,7 +10,7 @@ from django.shortcuts import redirect, render, get_object_or_404
 from django.utils import timezone
 
 from .forms import TeacherRegistrationForm, TestForm, TestQuestionForm
-from .models import Course, LiveLesson, TeacherApplication, TeacherCertificate, Test, TestAttempt, TestQuestion
+from .models import Course, Enrollment, LiveLesson, TeacherApplication, TeacherCertificate, Test, TestAttempt, TestQuestion
 
 
 def teacher_allowed(user):
@@ -86,10 +86,15 @@ def create_live_lesson(request):
         title = (request.POST.get('title') or '').strip()
         subject = (request.POST.get('subject') or '').strip()
         stream_url = (request.POST.get('stream_url') or '').strip()
+        course_id = request.POST.get('course_id')
 
         if title:
+            course = None
+            if course_id:
+                course = get_object_or_404(Course, id=course_id, teacher=request.user)
             LiveLesson.objects.create(
                 teacher=request.user,
+                course=course,
                 title=title,
                 subject=subject or 'Umumiy dars',
                 stream_url=stream_url or None,
@@ -358,16 +363,27 @@ def add_question_bulk_to_test(request, test_id):
 @login_required(login_url='/online-urgat/login/')
 def join_live_lesson(request, lesson_id):
     try:
-        lesson = LiveLesson.objects.select_related('teacher').get(id=lesson_id)
+        lesson = LiveLesson.objects.select_related('teacher', 'course').get(id=lesson_id)
     except LiveLesson.DoesNotExist:
         messages.error(request, 'Bu dars topilmadi.')
         return redirect('online_urgat:teacher_dashboard')
 
     is_teacher = bool(request.user.is_authenticated and request.user == lesson.teacher)
 
+    if is_teacher:
+        allowed = True
+    elif lesson.course_id is None:
+        allowed = False
+    else:
+        allowed = lesson.user_can_join(request.user)
+
+    if not allowed:
+        messages.error(request, 'Bu darsga qatnashish uchun kursga yozilgan bo\'lishingiz kerak.')
+        return redirect('accounts:dashboard') if hasattr(request, 'user') else redirect('online_urgat:teacher_dashboard')
+
     if lesson.stream_url and not is_teacher and not lesson.is_live:
         messages.info(request, 'Dars hali boshlanmagan. O‘qituvchi darsni boshlagach, darsxona ochiladi.')
-        return redirect('online_urgat:teacher_dashboard')
+        return redirect('accounts:dashboard')
 
     if lesson.stream_url and not is_teacher:
         return redirect(lesson.stream_url)

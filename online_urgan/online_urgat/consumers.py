@@ -21,15 +21,16 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
             await self.close()
             return
 
+        if not (self.lesson.teacher_id == user.id or self.lesson.user_can_join(user)):
+            await self.close()
+            return
+
         self.user_id = user.id
         self.user_name = user.get_full_name() or user.username
         self.is_teacher = user.id == self.lesson.teacher_id
         self.user_role = 'teacher' if self.is_teacher else 'student'
 
-        await self.channel_layer.group_add(
-            self.room_group_name,
-            self.channel_name,
-        )
+        await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
 
         await self.channel_layer.group_send(
@@ -49,7 +50,7 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_lesson(self, lesson_id):
-        return LiveLesson.objects.select_related('teacher').filter(id=lesson_id).first()
+        return LiveLesson.objects.select_related('teacher', 'course').filter(id=lesson_id).first()
 
     async def disconnect(self, close_code):
         if hasattr(self, 'room_group_name'):
@@ -67,10 +68,7 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
                     },
                 },
             )
-            await self.channel_layer.group_discard(
-                self.room_group_name,
-                self.channel_name,
-            )
+            await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
 
     async def receive(self, text_data):
         if not text_data:
@@ -106,10 +104,7 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
             'target_user_id': data.get('target_user_id'),
         }
 
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            event,
-        )
+        await self.channel_layer.group_send(self.room_group_name, event)
 
     async def broadcast_message(self, event):
         payload = event.get('payload', {})

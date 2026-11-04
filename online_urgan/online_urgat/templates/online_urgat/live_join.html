@@ -6,117 +6,306 @@
     <title>{{ lesson.title }} | Jonli dars</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        :root {
+            --bg-1: #020817;
+            --bg-2: #0f172a;
+            --panel: rgba(15, 23, 42, 0.72);
+            --line: rgba(148, 163, 184, 0.18);
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --cyan: #22d3ee;
+            --violet: #8b5cf6;
+            --rose: #fb7185;
+            --emerald: #34d399;
+        }
+
+        * { box-sizing: border-box; }
+
         body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background:
                 radial-gradient(circle at top left, rgba(34,211,238,0.18), transparent 26%),
                 radial-gradient(circle at bottom right, rgba(168,85,247,0.14), transparent 28%),
-                linear-gradient(135deg, #020817 0%, #0f172a 45%, #111827 100%);
+                linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 45%, #111827 100%);
+            color: var(--text);
         }
-        .glass {
-            background: rgba(15, 23, 42, 0.5);
-            border: 1px solid rgba(255,255,255,0.12);
+
+        button, input { font: inherit; }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
             box-shadow: 0 25px 50px rgba(15, 23, 42, 0.35);
         }
-        .video-shell {
+
+        .live-shell {
             position: relative;
             overflow: hidden;
-            border-radius: 1rem;
-            background: rgba(15, 23, 42, 0.8);
+            border-radius: 1.5rem;
+            min-height: 520px;
+            background: rgba(2, 6, 23, 0.9);
             border: 1px solid rgba(255,255,255,0.08);
-            aspect-ratio: 16 / 10;
         }
-        video {
+
+        .stage {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            min-height: 520px;
+            background: linear-gradient(135deg, rgba(15,23,42,0.72), rgba(2,6,23,0.9));
+        }
+
+        .stage video {
+            position: absolute;
+            inset: 0;
             width: 100%;
             height: 100%;
             object-fit: cover;
             display: block;
             background: #020817;
         }
+
+        .video-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top, rgba(2, 6, 23, 0.78), rgba(2, 6, 23, 0.08));
+            pointer-events: none;
+        }
+
+        .floating-window {
+            position: absolute;
+            right: 1rem;
+            bottom: 1rem;
+            width: min(34vw, 260px);
+            max-width: 260px;
+            min-width: 180px;
+            border-radius: 1rem;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(15,23,42,0.8);
+            box-shadow: 0 20px 45px rgba(2, 6, 23, 0.45);
+            z-index: 30;
+        }
+
+        .floating-window video {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            display: block;
+            background: #020817;
+        }
+
+        .floating-window .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0.8rem;
+            background: rgba(15, 23, 42, 0.7);
+            border-top: 1px solid rgba(255,255,255,0.06);
+            font-size: 11px;
+            color: rgba(226,232,240,0.9);
+        }
+
+        .spotlight-grid {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(150px, 1fr));
+            gap: 0.75rem;
+            padding: 1rem;
+            z-index: 12;
+            pointer-events: auto;
+        }
+
+        .participant-tile {
+            position: relative;
+            overflow: hidden;
+            min-height: 140px;
+            border-radius: 1rem;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(15,23,42,0.9);
+            cursor: pointer;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .participant-tile:hover {
+            transform: translateY(-1px);
+            border-color: rgba(34,211,238,0.4);
+        }
+
+        .participant-tile.active {
+            border-color: rgba(34,211,238,0.8);
+            box-shadow: 0 0 0 1px rgba(34,211,238,0.25);
+        }
+
+        .participant-tile video {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            background: #020817;
+        }
+
+        .participant-meta {
+            position: absolute;
+            left: 0.7rem;
+            bottom: 0.7rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.35rem 0.7rem;
+            border-radius: 9999px;
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(255,255,255,0.08);
+            font-size: 11px;
+            color: #e2e8f0;
+            z-index: 2;
+        }
+
+        .participant-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 0.5rem;
+            height: 0.5rem;
+            border-radius: 9999px;
+            background: var(--emerald);
+            box-shadow: 0 0 10px rgba(52,211,153,0.9);
+        }
+
+        .controls-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 1rem;
+        }
+
+        .control-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        .action-btn {
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 0.9rem;
+            padding: 0.7rem 1rem;
+            background: rgba(255,255,255,0.05);
+            color: white;
+            cursor: pointer;
+            transition: transform 0.15s ease, background 0.15s ease;
+            font-weight: 600;
+        }
+
+        .action-btn:hover { transform: translateY(-1px); }
+
+        .primary { background: linear-gradient(90deg, rgba(34,211,238,0.22), rgba(139,92,246,0.35)); }
+        .danger { background: rgba(244,63,94,0.14); border-color: rgba(251,113,133,0.3); }
+
         .chat-scroll::-webkit-scrollbar { width: 6px; }
         .chat-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.4); border-radius: 9999px; }
+
+        @media (max-width: 1024px) {
+            .floating-window { width: 200px; }
+            .stage, .live-shell { min-height: 420px; }
+        }
+
         @media (max-width: 640px) {
-            .live-header {
-                flex-direction: column;
-                align-items: flex-start;
+            .live-header { flex-direction: column; align-items: flex-start; }
+            .floating-window {
+                right: 0.75rem;
+                bottom: 0.75rem;
+                width: 180px;
+                min-width: 150px;
             }
+            .spotlight-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body class="min-h-screen text-white">
 <div class="mx-auto max-w-7xl px-3 py-5 sm:px-6 lg:px-8">
-    <div class="glass rounded-[30px] p-4 sm:p-6">
-        <div class="live-header mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div class="panel rounded-[30px] p-4 sm:p-6">
+        <div class="live-header mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div class="min-w-0">
                 <p class="text-[10px] font-semibold uppercase tracking-[0.25em] text-cyan-200">Jonli dars</p>
                 <h1 class="mt-2 text-2xl font-black text-white sm:text-3xl">{{ lesson.title }}</h1>
                 <p class="mt-2 text-sm text-slate-300 sm:text-base">{{ lesson.subject|default:'Umumiy dars' }}</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                {% if is_live %}
-                    <span class="rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-rose-200">Hozir jonli</span>
-                {% else %}
-                    <span class="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-amber-200">Kutilyapti</span>
-                {% endif %}
+                <span id="liveBadge" class="rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-rose-200">
+                    {% if is_live %}Hozir jonli{% else %}Kutilyapti{% endif %}
+                </span>
                 <button id="copyRoomLink" type="button" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-white/10">Linkni nusxalash</button>
             </div>
         </div>
 
-        <div class="grid gap-5 xl:grid-cols-[1.6fr_0.9fr]">
+        <div class="grid gap-5 xl:grid-cols-[1.7fr_0.9fr]">
             <div class="space-y-4">
-                <div class="glass rounded-[26px] p-3 sm:p-4">
-                    <h2 class="text-base font-bold text-white sm:text-lg">Dars xonasi</h2>
-                    <div class="mt-4 rounded-[22px] border border-white/10 bg-slate-950/60 p-3 text-slate-200 sm:p-4">
-                        <div class="text-sm">O'qituvchi: <span class="font-semibold text-white">{{ lesson.teacher.get_full_name|default:lesson.teacher.username }}</span></div>
-                        <div class="mt-2 text-sm">Status: <span id="liveStatus" class="font-semibold text-cyan-300">{% if is_live %}Jonli dars faol{% else %}Dars tayyorlanmoqda{% endif %}</span></div>
-                        {% if lesson.stream_url %}
-                            <a href="{{ lesson.stream_url }}" target="_blank" rel="noopener" class="mt-4 inline-flex rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-100 hover:bg-rose-500/20">Ulanish havolasi</a>
-                        {% endif %}
+                <div class="panel rounded-[26px] p-3 sm:p-4">
+                    <div class="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                            <div class="text-xs uppercase tracking-[0.22em] text-cyan-200">Dars xonasi</div>
+                        </div>
+                        <div id="liveStatus" class="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-200">
+                            {% if is_live %}Jonli dars faol{% else %}Dars tayyorlanmoqda{% endif %}
+                        </div>
                     </div>
 
-                    <div class="mt-5 rounded-[22px] border border-dashed border-cyan-400/20 bg-cyan-500/5 p-3 text-xs text-slate-300 sm:text-sm">
-                        {% if is_teacher %}
-                            Siz dars o'qituvchisiz. O'quvchilar bilan chat, video va ekran ulanishi ishlaydi.
-                        {% else %}
-                            Dars boshlanganda video, ekran va chat oynasi avtomatik ravishda ishlaydi.
-                        {% endif %}
-                    </div>
-
-                    <div class="mt-5 grid gap-3 sm:grid-cols-2">
-                        <div class="rounded-[20px] border border-white/10 bg-slate-950/40 p-2 sm:p-3">
-                            <div class="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-200">Sizning kamera</div>
-                            <div class="video-shell">
+                    <div class="live-shell">
+                        <div id="stageView" class="stage">
+                            <video id="remoteVideo" autoplay playsinline muted="false"></video>
+                            <div class="video-overlay"></div>
+                            <div id="participantGrid" class="spotlight-grid hidden"></div>
+                            <div class="floating-window">
                                 <video id="localVideo" autoplay muted playsinline></video>
-                            </div>
-                        </div>
-                        <div class="rounded-[20px] border border-white/10 bg-slate-950/40 p-2 sm:p-3">
-                            <div class="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200">Ekran / remote</div>
-                            <div class="video-shell">
-                                <video id="remoteVideo" autoplay playsinline></video>
+                                <div class="toolbar">
+                                    <span>{{ request.user.get_full_name|default:request.user.username }}</span>
+                                    <span id="micIndicator">Mic on</span>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="mt-4 flex flex-wrap gap-2">
-                        <button id="startCallBtn" type="button" class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-cyan-500/20">Darsni yoqish</button>
-                        <button id="shareScreenBtn" type="button" class="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/20">Ekranni ulashish</button>
-                        <button id="toggleMicBtn" type="button" class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100">Mikrofon o'chirish</button>
+                    <div class="controls-bar">
+                        <div class="control-group">
+                            <button id="startCallBtn" type="button" class="action-btn primary">Darsni yoqish</button>
+                            <button id="shareScreenBtn" type="button" class="action-btn">Ekranni ulashish</button>
+                            <button id="toggleMicBtn" type="button" class="action-btn">Mikrofon o'chirish</button>
+                        </div>
+                        <div class="control-group">
+                            <button id="toggleGridBtn" type="button" class="action-btn">Grid</button>
+                            <button id="toggleFullscreenBtn" type="button" class="action-btn">To'liq ekran</button>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <aside class="space-y-5">
-                <div class="glass rounded-[26px] p-3 sm:p-4">
+                <div class="panel rounded-[26px] p-3 sm:p-4">
                     <div class="mb-3 flex items-center justify-between">
                         <h3 class="text-base font-bold text-white sm:text-lg">Chat</h3>
                         <span class="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-cyan-200">Live</span>
                     </div>
-                    <div id="chatMessages" class="chat-scroll max-h-[320px] min-h-[180px] space-y-2 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/20 p-3 text-sm text-slate-200 sm:max-h-[360px]"></div>
+                    <div id="chatMessages" class="chat-scroll max-h-[360px] min-h-[180px] space-y-2 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/20 p-3 text-sm text-slate-200"></div>
                     <div class="mt-3 flex gap-2">
                         <input id="chatInput" type="text" maxlength="200" placeholder="Xabar yozing..." class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/80">
                         <button id="sendChat" type="button" class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-3 py-2 text-sm font-bold text-white">Yuborish</button>
                     </div>
+                </div>
+
+                <div class="panel rounded-[26px] p-3 sm:p-4">
+                    <div class="mb-3 flex items-center justify-between">
+                        <h3 class="text-base font-bold text-white sm:text-lg">Qatnashuvchilar</h3>
+                        <span id="participantCount" class="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-emerald-200">1</span>
+                    </div>
+                    <div id="participantList" class="space-y-2 text-sm text-slate-200"></div>
                 </div>
             </aside>
         </div>
@@ -131,13 +320,20 @@
     const liveStatus = document.getElementById('liveStatus');
     const localVideo = document.getElementById('localVideo');
     const remoteVideo = document.getElementById('remoteVideo');
+    const participantList = document.getElementById('participantList');
+    const participantGrid = document.getElementById('participantGrid');
+    const participantCount = document.getElementById('participantCount');
     const startCallBtn = document.getElementById('startCallBtn');
     const shareScreenBtn = document.getElementById('shareScreenBtn');
     const toggleMicBtn = document.getElementById('toggleMicBtn');
+    const toggleGridBtn = document.getElementById('toggleGridBtn');
+    const toggleFullscreenBtn = document.getElementById('toggleFullscreenBtn');
+    const micIndicator = document.getElementById('micIndicator');
 
     const lessonId = {{ lesson.id }};
     const username = '{{ request.user.get_full_name|default:request.user.username|escapejs }}';
     const userRole = '{{ is_teacher|yesno:"teacher,student" }}';
+    const userId = Number('{{ request.user.id }}');
     const socketUrl = (() => {
         try {
             const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
@@ -147,13 +343,25 @@
             return null;
         }
     })();
-    const socket = socketUrl ? new WebSocket(socketUrl) : null;
 
+    const socket = socketUrl ? new WebSocket(socketUrl) : null;
+    const roomName = `live_lesson_${lessonId}`;
+    const participants = new Map();
     let localStream = null;
     let screenStream = null;
     let peerConnection = null;
     let mediaEnabled = true;
+    let gridVisible = false;
     let isCaller = userRole === 'teacher';
+
+    const rtcConfig = {
+        iceServers: [{
+            urls: [
+                'stun:stun.l.google.com:19302',
+                'stun:stun1.l.google.com:19302'
+            ]
+        }]
+    };
 
     const addChatEntry = (message, sender = 'System') => {
         if (!chatMessages) return;
@@ -165,17 +373,83 @@
         chatMessages.scrollTop = chatMessages.scrollHeight;
     };
 
-    const rtcConfig = {
-        iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }]
+    const updateParticipantList = () => {
+        const list = [...participants.values()].sort((a, b) => a.name.localeCompare(b.name));
+        participantCount.textContent = String(list.length);
+        participantList.innerHTML = '';
+
+        if (!list.length) {
+            participantList.innerHTML = '<div class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-slate-300">Hech kim mavjud emas</div>';
+            return;
+        }
+
+        list.forEach((participant) => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = `w-full rounded-xl border px-3 py-2 text-left ${participant.isActive ? 'border-cyan-400/30 bg-cyan-500/10 text-white' : 'border-white/10 bg-white/5 text-slate-200'} `;
+            item.textContent = `${participant.name} ${participant.role === 'teacher' ? '• O\`qituvchi' : '• O\`quvchi'}`;
+            item.addEventListener('click', () => {
+                spotlightParticipant(participant.id);
+            });
+            participantList.appendChild(item);
+        });
     };
 
-    const addTracksToPeerConnection = (stream) => {
-        if (!peerConnection || !stream) return;
-        stream.getTracks().forEach(track => {
-            const alreadyAdded = peerConnection.getSenders().some(sender => sender.track === track);
-            if (!alreadyAdded) {
-                peerConnection.addTrack(track, stream);
+    const spotlightParticipant = (userIdToFocus) => {
+        const active = participants.get(userIdToFocus);
+        if (!active) return;
+
+        const videoEl = document.querySelector(`[data-user-id="${userIdToFocus}"]`);
+        if (videoEl) {
+            videoEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            videoEl.classList.add('active');
+            setTimeout(() => videoEl.classList.remove('active'), 1200);
+        }
+    };
+
+    const ensureParticipantTile = (participant) => {
+        let tile = document.querySelector(`[data-user-id="${participant.id}"]`);
+        if (tile) return tile;
+
+        tile = document.createElement('div');
+        tile.className = 'participant-tile';
+        tile.dataset.userId = String(participant.id);
+        tile.innerHTML = `
+            <video autoplay playsinline muted></video>
+            <div class="participant-meta"><span class="participant-badge"></span>${participant.name}</div>
+        `;
+        tile.addEventListener('dblclick', () => {
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            } else {
+                tile.requestFullscreen().catch(() => {});
             }
+        });
+        participantGrid.appendChild(tile);
+        return tile;
+    };
+
+    const renderParticipantGrid = () => {
+        const list = [...participants.values()].filter((p) => p.id !== userId);
+        participantGrid.innerHTML = '';
+        if (!list.length) {
+            participantGrid.classList.add('hidden');
+            return;
+        }
+
+        if (!gridVisible) {
+            participantGrid.classList.add('hidden');
+            return;
+        }
+
+        participantGrid.classList.remove('hidden');
+        list.forEach((participant) => {
+            const tile = ensureParticipantTile(participant);
+            const video = tile.querySelector('video');
+            if (video && participant.stream) {
+                video.srcObject = participant.stream;
+            }
+            tile.dataset.userId = String(participant.id);
         });
     };
 
@@ -186,23 +460,43 @@
                 if (event.candidate && socket && socket.readyState === WebSocket.OPEN) {
                     socket.send(JSON.stringify({
                         type: 'webrtc-candidate',
-                        room: `live_lesson_${lessonId}`,
+                        room: roomName,
                         sender: username,
                         role: userRole,
-                        sender_id: '{{ request.user.id }}',
+                        sender_id: userId,
                         candidate: event.candidate.toJSON()
                     }));
                 }
             };
 
             peerConnection.ontrack = (event) => {
-                if (event.streams && event.streams[0]) {
-                    remoteVideo.srcObject = event.streams[0];
+                const stream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream();
+                if (event.track.kind === 'video') {
+                    remoteVideo.srcObject = stream;
                 }
+                const remoteParticipant = {
+                    id: userId,
+                    name: 'Remote participant',
+                    role: 'student',
+                    stream: stream,
+                    isActive: true,
+                };
+                participants.set(remoteParticipant.id, remoteParticipant);
+                updateParticipantList();
+                renderParticipantGrid();
             };
         }
-
         return peerConnection;
+    };
+
+    const addTracksToPeerConnection = (stream) => {
+        if (!peerConnection || !stream) return;
+        stream.getTracks().forEach((track) => {
+            const alreadyAdded = peerConnection.getSenders().some((sender) => sender.track === track);
+            if (!alreadyAdded) {
+                peerConnection.addTrack(track, stream);
+            }
+        });
     };
 
     const startLocalMedia = async () => {
@@ -212,11 +506,12 @@
             }
             localStream = await navigator.mediaDevices.getUserMedia({
                 video: true,
-                audio: true
+                audio: true,
             });
             localVideo.srcObject = localStream;
             addTracksToPeerConnection(localStream);
-            liveStatus.textContent = isCaller ? 'You are live' : 'Teacher connected';
+            liveStatus.textContent = userRole === 'teacher' ? 'Dars boshlanmoqda' : 'Ulangan';
+            micIndicator.textContent = mediaEnabled ? 'Mic on' : 'Mic off';
         } catch (error) {
             console.error('Kamera/mikrofon olishda xatolik:', error);
             liveStatus.textContent = 'Kamera/mikrofon ishlayapti emas';
@@ -232,32 +527,33 @@
 
             screenStream = await navigator.mediaDevices.getDisplayMedia({
                 video: { frameRate: 30, cursor: 'always' },
-                audio: true
+                audio: true,
             });
+
+            const screenVideo = document.createElement('video');
+            screenVideo.autoplay = true;
+            screenVideo.playsInline = true;
+            screenVideo.muted = true;
+            screenVideo.srcObject = screenStream;
+            screenVideo.style.position = 'absolute';
+            screenVideo.style.inset = '0';
+            screenVideo.style.width = '100%';
+            screenVideo.style.height = '100%';
+            screenVideo.style.objectFit = 'cover';
+            screenVideo.style.display = 'block';
+            screenVideo.style.zIndex = '15';
+
+            const oldScreen = document.querySelector('.screen-share-video');
+            if (oldScreen) oldScreen.remove();
+            screenVideo.classList.add('screen-share-video');
+            document.getElementById('stageView').appendChild(screenVideo);
 
             addTracksToPeerConnection(screenStream);
-
-            const screenWrap = document.createElement('div');
-            screenWrap.className = 'mt-3 rounded-[20px] border border-white/10 bg-slate-950/40 p-2 sm:p-3';
-            screenWrap.innerHTML = `
-                <div class="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-200">Sizning ekran</div>
-                <div class="video-shell"><video autoplay muted playsinline></video></div>
-            `;
-            const screenVideo = screenWrap.querySelector('video');
-            screenVideo.srcObject = screenStream;
-
-            const mediaBlock = document.querySelector('.mt-5.grid.gap-3');
-            if (mediaBlock) {
-                mediaBlock.appendChild(screenWrap);
-            }
+            addChatEntry('Ekran ulanishi boshlandi.', 'System');
 
             screenStream.getVideoTracks()[0].addEventListener('ended', () => {
-                if (screenWrap && screenWrap.parentNode) {
-                    screenWrap.parentNode.removeChild(screenWrap);
-                }
+                document.querySelector('.screen-share-video')?.remove();
             });
-
-            addChatEntry('Ekran ulanishi ishga tushdi.', 'System');
         } catch (error) {
             console.error('Ekran ulashishda xatolik:', error);
             addChatEntry('Ekran ulashish bekor qilindi yoki brauzer ruxsati berilmadi.', 'System');
@@ -266,46 +562,39 @@
 
     const createOffer = async () => {
         const pc = ensurePeerConnection();
-        if (!localStream) {
-            await startLocalMedia();
-        }
-        if (localStream) {
-            addTracksToPeerConnection(localStream);
-        }
+        if (!localStream) await startLocalMedia();
+        if (localStream) addTracksToPeerConnection(localStream);
+
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         socket.send(JSON.stringify({
             type: 'webrtc-offer',
-            room: `live_lesson_${lessonId}`,
+            room: roomName,
             sender: username,
             role: userRole,
-            sender_id: '{{ request.user.id }}',
+            sender_id: userId,
             offer: offer,
         }));
     };
 
     const handleRemoteSignal = async (payload) => {
-        if (!payload || !payload.sender || payload.sender === username) return;
-
+        if (!payload || !payload.sender) return;
         const pc = ensurePeerConnection();
+
         if (payload.type === 'webrtc-offer' && payload.offer) {
-            if (!localStream) {
-                await startLocalMedia();
-            }
-            if (localStream) {
-                addTracksToPeerConnection(localStream);
-            }
+            if (!localStream) await startLocalMedia();
+            if (localStream) addTracksToPeerConnection(localStream);
             await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             socket.send(JSON.stringify({
                 type: 'webrtc-answer',
-                room: `live_lesson_${lessonId}`,
+                room: roomName,
                 sender: username,
                 role: userRole,
-                sender_id: '{{ request.user.id }}',
+                sender_id: userId,
                 target_user_id: payload.sender_id,
-                answer: answer
+                answer: answer,
             }));
             return;
         }
@@ -319,7 +608,7 @@
             try {
                 await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
             } catch (error) {
-                console.error('ICE candidate qo‘shishda xatolik:', error);
+                console.error('ICE candidate qo`shishda xatolik:', error);
             }
         }
     };
@@ -329,20 +618,34 @@
         if (!message) return;
 
         if (!socket || socket.readyState !== WebSocket.OPEN) {
-            addChatEntry('Internet yoki WebSocket ulanishi mavjud emas. Iltimos, keyinroq qayta urinib ko\'ring.', 'System');
+            addChatEntry('Internet yoki WebSocket ulanishi mavjud emas. Iltimos, keyinroq qayta urinib ko`ring.', 'System');
             return;
         }
 
         addChatEntry(message, username);
         socket.send(JSON.stringify({
             type: 'chat-message',
-            room: `live_lesson_${lessonId}`,
+            room: roomName,
             sender: username,
             role: userRole,
-            message
+            message,
         }));
-
         chatInput.value = '';
+    };
+
+    const toggleGrid = () => {
+        gridVisible = !gridVisible;
+        toggleGridBtn.textContent = gridVisible ? 'Spotlight' : 'Grid';
+        renderParticipantGrid();
+    };
+
+    const toggleFullScreen = async () => {
+        const target = document.getElementById('stageView');
+        if (!document.fullscreenElement) {
+            if (target.requestFullscreen) await target.requestFullscreen();
+        } else {
+            document.exitFullscreen();
+        }
     };
 
     if (socket) {
@@ -357,14 +660,29 @@
         socket.onmessage = (event) => {
             try {
                 const payload = JSON.parse(event.data);
+
                 if (payload.type === 'presence') {
+                    const participant = {
+                        id: Number(payload.sender_id || 0),
+                        name: payload.sender || 'Participant',
+                        role: payload.role || 'student',
+                        stream: null,
+                        isActive: true,
+                    };
+
+                    if (payload.sender_id && Number(payload.sender_id) !== 0) {
+                        participants.set(Number(payload.sender_id), participant);
+                    }
+                    updateParticipantList();
                     addChatEntry(payload.message, payload.sender || 'System');
                     return;
                 }
+
                 if (payload.type === 'chat-message' && payload.message && payload.sender !== username) {
-                    addChatEntry(payload.message, payload.sender || 'Oquvchi');
+                    addChatEntry(payload.message, payload.sender || 'O`quvchi');
                     return;
                 }
+
                 if (payload.type && payload.type.startsWith('webrtc-')) {
                     handleRemoteSignal(payload);
                 }
@@ -385,7 +703,7 @@
 
     startCallBtn.addEventListener('click', async () => {
         if (!socket || socket.readyState !== WebSocket.OPEN) {
-            addChatEntry('WebSocket mavjud emas. Dars xonasiga qayta ulanib ko\'ring.', 'System');
+            addChatEntry('WebSocket mavjud emas. Dars xonasiga qayta ulanib ko`ring.', 'System');
             return;
         }
         await createOffer();
@@ -402,7 +720,11 @@
             track.enabled = mediaEnabled;
         });
         toggleMicBtn.textContent = mediaEnabled ? 'Mikrofon o\'chirish' : 'Mikrofon yoqish';
+        micIndicator.textContent = mediaEnabled ? 'Mic on' : 'Mic off';
     });
+
+    toggleGridBtn.addEventListener('click', toggleGrid);
+    toggleFullscreenBtn.addEventListener('click', toggleFullScreen);
 
     sendChatBtn.addEventListener('click', sendChat);
     chatInput.addEventListener('keydown', (event) => {
@@ -423,6 +745,14 @@
     if (userRole !== 'teacher') {
         startLocalMedia();
     }
+
+    document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement) {
+            toggleFullscreenBtn.textContent = "To'liq ekran";
+        } else {
+            toggleFullscreenBtn.textContent = 'Normal ekran';
+        }
+    });
 </script>
 </body>
 </html>

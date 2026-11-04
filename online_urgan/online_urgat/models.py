@@ -45,6 +45,26 @@ class Course(models.Model):
     def __str__(self):
         return self.title
 
+    @property
+    def live_lessons_count(self):
+        return self.live_lessons.count()
+
+
+class Enrollment(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='course_enrollments')
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='enrollments')
+    enrolled_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'course'], name='unique_user_course_enrollment'),
+        ]
+        ordering = ['-enrolled_at']
+
+    def __str__(self):
+        return f"{self.user.username} -> {self.course.title}"
+
 
 class Test(models.Model):
     teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tests')
@@ -113,6 +133,7 @@ class TestAttempt(models.Model):
 
 class LiveLesson(models.Model):
     teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name='live_lessons')
+    course = models.ForeignKey(Course, on_delete=models.SET_NULL, related_name='live_lessons', null=True, blank=True)
     title = models.CharField(max_length=200)
     subject = models.CharField(max_length=100, blank=True, default='')
     stream_url = models.URLField(blank=True, null=True)
@@ -122,3 +143,12 @@ class LiveLesson(models.Model):
 
     def __str__(self):
         return f"{self.teacher.username} - {self.title}"
+
+    def user_can_join(self, user):
+        if not user or not user.is_authenticated:
+            return False
+        if user == self.teacher:
+            return True
+        if self.course_id is None:
+            return False
+        return Enrollment.objects.filter(user=user, course=self.course, is_active=True).exists()
