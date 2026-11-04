@@ -22,7 +22,12 @@ from django.urls import include, path
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('accounts.urls')),
+
+    # Canonical modern URL style
     path('online-urgat/', include(('online_urgat.urls', 'online_urgat'), namespace='online_urgat')),
+
+    # Backward-compatible alias for legacy/underscored URL access to avoid 404s
+    path('online_urgat/', include(('online_urgat.urls', 'online_urgat'), namespace='online_urgat_legacy')),
 ]
 
 if settings.DEBUG:
