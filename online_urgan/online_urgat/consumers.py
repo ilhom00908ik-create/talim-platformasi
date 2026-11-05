@@ -33,6 +33,17 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
 
+        await self.send(
+            text_data=json.dumps({
+                'type': 'session_state',
+                'user_id': self.user_id,
+                'user_name': self.user_name,
+                'role': self.user_role,
+                'teacher_id': self.lesson.teacher_id,
+                'room': self.room_group_name,
+            })
+        )
+
         await self.channel_layer.group_send(
             self.room_group_name,
             {
@@ -84,6 +95,11 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
             return
 
         sender_id = data.get('sender_id') or getattr(self.scope.get('user'), 'id', None)
+        target_user_id = data.get('target_user_id')
+
+        if message_type in {'mute_all', 'mute_user', 'unmute_user'} and not self.is_teacher:
+            return
+
         payload = {
             'type': message_type,
             'sender': data.get('sender') or getattr(self, 'user_name', 'Anonymous'),
@@ -93,15 +109,17 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
             'offer': data.get('offer'),
             'answer': data.get('answer'),
             'candidate': data.get('candidate'),
-            'target_user_id': data.get('target_user_id'),
+            'target_user_id': target_user_id,
             'room': data.get('room') or self.room_group_name,
+            'muted': data.get('muted'),
+            'muted_by_host': data.get('muted_by_host'),
         }
 
         event = {
             'type': 'broadcast_message',
             'payload': payload,
             'sender_id': sender_id,
-            'target_user_id': data.get('target_user_id'),
+            'target_user_id': target_user_id,
         }
 
         await self.channel_layer.group_send(self.room_group_name, event)
@@ -110,12 +128,13 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
         payload = event.get('payload', {})
         sender_id = event.get('sender_id')
         target_user_id = event.get('target_user_id')
+        current_user_id = getattr(self.scope.get('user'), 'id', None)
 
-        if target_user_id is not None and target_user_id != getattr(self.scope.get('user'), 'id', None):
+        if target_user_id is not None and target_user_id != current_user_id:
             return
 
         if payload.get('type') in {'webrtc-offer', 'webrtc-answer', 'webrtc-candidate'}:
-            if sender_id == getattr(self.scope.get('user'), 'id', None):
+            if sender_id == current_user_id:
                 return
 
         await self.send(text_data=json.dumps(payload))

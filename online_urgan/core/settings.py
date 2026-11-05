@@ -223,6 +223,14 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = True
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
+# Production WebSocket channel layer
+REDIS_URL = os.getenv('REDIS_URL')
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer' if REDIS_URL else 'channels.layers.InMemoryChannelLayer',
+        'CONFIG': {'hosts': [REDIS_URL]} if REDIS_URL else {},
+    }
+}
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
@@ -233,12 +241,12 @@ MAILERS = {
     },
 }
 
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
-    },
-}
+# Legacy fallback for local dev if Redis package is not installed.
+if not REDIS_URL:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        }
+    }
 
-import os
-STATIC_URL = 'static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# --- keep static settings below if necessary ---
