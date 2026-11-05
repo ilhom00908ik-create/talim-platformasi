@@ -1,24 +1,18 @@
-"""
-ASGI config for core project.
-"""
-
 import os
-
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
-
-from channels.routing import ProtocolTypeRouter, URLRouter
-from channels.security.websocket import AllowedHostsOriginValidator
+import django
 from django.core.asgi import get_asgi_application
 
+# 1. Django sozlamalarini yuklaymiz va setup qilamiz (Eng birinchi turishi shart!)
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
+django.setup()
+
+# 2. Endi routing va consumer larni xavfsiz import qilishimiz mumkin
+from channels.routing import ProtocolTypeRouter, URLRouter
 from core import routing
 
-django_asgi_app = get_asgi_application()
-
 application = ProtocolTypeRouter({
-    'http': django_asgi_app,
-    'websocket': AllowedHostsOriginValidator(
-        URLRouter(
-            routing.application["websocket"].application.router.routes
-        )
+    "http": get_asgi_application(),
+    "websocket": URLRouter(
+        routing.websocket_urlpatterns
     ),
 })
