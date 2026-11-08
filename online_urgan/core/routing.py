@@ -12,11 +12,11 @@ from django.urls import path
 
 from online_urgat import consumers
 
+websocket_urlpatterns = [
+    path('ws/live/<int:lesson_id>/', consumers.LiveLessonConsumer.as_asgi()),
+]
+
 application = ProtocolTypeRouter({
-    "http": get_asgi_application(),
-    "websocket": AuthMiddlewareStack(
-        URLRouter([
-            path("ws/live/<int:lesson_id>/", consumers.LiveLessonConsumer.as_asgi()),
-        ])
-    ),
+    'http': get_asgi_application(),
+    'websocket': AuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
 })

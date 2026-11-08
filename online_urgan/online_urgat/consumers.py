@@ -10,7 +10,7 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         user = self.scope.get('user')
         if not user or not user.is_authenticated:
-            await self.close()
+            await self.close(code=1008)
             return
 
         self.lesson_id = self.scope['url_route']['kwargs']['lesson_id']
@@ -18,17 +18,18 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
 
         self.lesson = await self.get_lesson(self.lesson_id)
         if not self.lesson:
-            await self.close()
+            await self.close(code=1008)
             return
 
         if not (self.lesson.teacher_id == user.id or self.lesson.user_can_join(user)):
-            await self.close()
+            await self.close(code=1008)
             return
 
         self.user_id = user.id
         self.user_name = user.get_full_name() or user.username
         self.is_teacher = user.id == self.lesson.teacher_id
         self.user_role = 'teacher' if self.is_teacher else 'student'
+        self.mic_muted_by_host = False
 
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
@@ -41,6 +42,8 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
                 'role': self.user_role,
                 'teacher_id': self.lesson.teacher_id,
                 'room': self.room_group_name,
+                'can_control_mic': self.is_teacher,
+                'mic_muted_by_host': self.mic_muted_by_host,
             })
         )
 
@@ -97,7 +100,10 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
         sender_id = data.get('sender_id') or getattr(self.scope.get('user'), 'id', None)
         target_user_id = data.get('target_user_id')
 
-        if message_type in {'mute_all', 'mute_user', 'unmute_user'} and not self.is_teacher:
+        if message_type in {'mute_all', 'unmute_all', 'mute_user', 'unmute_user'} and not self.is_teacher:
+            return
+
+        if message_type in {'mute_user', 'unmute_user'} and target_user_id is None:
             return
 
         payload = {
@@ -130,11 +136,14 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
         target_user_id = event.get('target_user_id')
         current_user_id = getattr(self.scope.get('user'), 'id', None)
 
-        if target_user_id is not None and target_user_id != current_user_id:
+        if target_user_id is not None:
+            if current_user_id != target_user_id:
+                return
+        elif sender_id is not None and sender_id == current_user_id:
             return
 
         if payload.get('type') in {'webrtc-offer', 'webrtc-answer', 'webrtc-candidate'}:
-            if sender_id == current_user_id:
+            if target_user_id is None and sender_id == current_user_id:
                 return
 
         await self.send(text_data=json.dumps(payload))
