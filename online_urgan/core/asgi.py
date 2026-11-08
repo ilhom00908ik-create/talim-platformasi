@@ -1,20 +1,20 @@
 import os
+import django
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
+django.setup()
 
-import django
 from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
 from django.core.asgi import get_asgi_application
-
-
-django.setup()
-
-from core import routing
+from django.urls import path
+from online_urgat import consumers
 
 application = ProtocolTypeRouter({
-    'http': get_asgi_application(),
-    'websocket': AuthMiddlewareStack(
-        URLRouter(routing.websocket_urlpatterns)
+    "http": get_asgi_application(),
+    "websocket": AuthMiddlewareStack(
+        URLRouter([
+            path("ws/live/<int:lesson_id>/", consumers.LiveLessonConsumer.as_asgi()),
+        ])
     ),
 })
