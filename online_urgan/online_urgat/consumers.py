@@ -100,7 +100,7 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
         sender_id = data.get('sender_id') or getattr(self.scope.get('user'), 'id', None)
         target_user_id = data.get('target_user_id')
 
-        if message_type in {'mute_all', 'unmute_all', 'mute_user', 'unmute_user'} and not self.is_teacher:
+        if message_type in {'mute_all', 'unmute_all', 'mute_user', 'unmute_user', 'screen-share-start', 'screen-share-stop'} and not self.is_teacher:
             return
 
         if message_type in {'mute_user', 'unmute_user'} and target_user_id is None:
@@ -119,6 +119,8 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
             'room': data.get('room') or self.room_group_name,
             'muted': data.get('muted'),
             'muted_by_host': data.get('muted_by_host'),
+            'screen_share_active': data.get('screen_share_active'),
+            'screen_owner_id': data.get('screen_owner_id'),
         }
 
         event = {

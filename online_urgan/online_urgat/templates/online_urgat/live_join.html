@@ -358,16 +358,55 @@
     const participants = new Map();
     const peers = new Map();
     const peerStarted = new Set();
+    const screenTrackRefs = new Set();
     let localStream = null;
     let screenStream = null;
     let mediaEnabled = true;
     let participantsVisible = true;
+    let teacherId = null;
+    let screenOwnerId = null;
+    let screenSharingActive = false;
 
     const rtcConfig = {
         iceServers: [
             { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }
         ]
     };
+
+    function setMainVideoStream(stream) {
+        if (!stream) {
+            remoteVideo.srcObject = null;
+            return;
+        }
+        remoteVideo.srcObject = stream;
+    }
+
+    function updateMainDisplay() {
+        if (screenSharingActive && screenOwnerId !== null) {
+            const owner = participants.get(screenOwnerId);
+            if (owner && owner.stream) {
+                const screenTrack = owner.stream.getVideoTracks().find((track) => /(screen|window|display|tab)/i.test(track.label || ''));
+                if (screenTrack) {
+                    setMainVideoStream(new MediaStream([screenTrack]));
+                    return;
+                }
+            }
+        }
+
+        const preferredId = userRole === 'student' ? teacherId : [...participants.keys()].find((id) => id !== userId && id !== screenOwnerId);
+        if (preferredId != null) {
+            const participant = participants.get(preferredId);
+            if (participant && participant.stream) {
+                const videoTrack = participant.stream.getVideoTracks()[0];
+                if (videoTrack) {
+                    setMainVideoStream(new MediaStream([videoTrack]));
+                    return;
+                }
+            }
+        }
+
+        setMainVideoStream(null);
+    }
 
     function addChatEntry(message, sender = 'System') {
         const entry = document.createElement('div');
@@ -445,7 +484,6 @@
             video.autoplay = true;
             video.playsInline = true;
             video.muted = true;
-
             if (participant.stream) {
                 video.srcObject = participant.stream;
             }
@@ -461,7 +499,9 @@
     }
 
     function ensurePeerConnection(remoteUserId) {
-        if (peers.has(remoteUserId)) return peers.get(remoteUserId);
+        if (peers.has(remoteUserId)) {
+            return peers.get(remoteUserId);
+        }
 
         const pc = new RTCPeerConnection(rtcConfig);
 
@@ -480,7 +520,7 @@
         };
 
         pc.ontrack = (event) => {
-            const stream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream();
+            const stream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream([event.track]);
             const incomingParticipant = participants.get(remoteUserId) || {
                 id: remoteUserId,
                 name: `User ${remoteUserId}`,
@@ -492,17 +532,21 @@
             incomingParticipant.stream = stream;
             participants.set(remoteUserId, incomingParticipant);
 
-            if (remoteUserId !== userId) {
-                const remoteVideoHolder = document.getElementById('remoteVideo');
-                if (remoteVideoHolder && remoteVideoHolder.srcObject === null) {
-                    remoteVideoHolder.srcObject = stream;
-                }
+            const tile = participantStrip.querySelector(`[data-user-id="${remoteUserId}"]`);
+            if (tile) {
+                const tileVideo = tile.querySelector('video');
+                if (tileVideo) tileVideo.srcObject = stream;
             }
 
-            const stripTile = participantStrip.querySelector(`[data-user-id="${remoteUserId}"]`);
-            if (stripTile) {
-                const tileVideo = stripTile.querySelector('video');
-                if (tileVideo) tileVideo.srcObject = stream;
+            const trackLabel = (event.track && event.track.label ? event.track.label : '').toLowerCase();
+            const isScreenTrack = /(screen|window|display|tab)/i.test(trackLabel);
+            if (screenSharingActive && screenOwnerId === remoteUserId && isScreenTrack) {
+                setMainVideoStream(new MediaStream([event.track]));
+            } else if (screenOwnerId === null || remoteUserId !== screenOwnerId) {
+                const videoTrack = stream.getVideoTracks()[0] || event.track;
+                if (videoTrack && videoTrack.kind === 'video') {
+                    setMainVideoStream(new MediaStream([videoTrack]));
+                }
             }
 
             updateParticipantList();
@@ -523,15 +567,24 @@
         return pc;
     }
 
-    async function addLocalTracksToPeer(remoteUserId) {
+    function addLocalTracksToPeer(remoteUserId) {
         const pc = ensurePeerConnection(remoteUserId);
-        if (!localStream) return;
+        const streamList = [];
 
-        localStream.getTracks().forEach((track) => {
-            const alreadyAdded = pc.getSenders().some((sender) => sender.track === track);
-            if (!alreadyAdded) {
-                pc.addTrack(track, localStream);
-            }
+        if (localStream) {
+            streamList.push(localStream);
+        }
+        if (screenStream && userId === screenOwnerId) {
+            streamList.push(screenStream);
+        }
+
+        streamList.forEach((stream) => {
+            stream.getTracks().forEach((track) => {
+                const alreadyAdded = pc.getSenders().some((sender) => sender.track === track);
+                if (!alreadyAdded) {
+                    pc.addTrack(track, stream);
+                }
+            });
         });
     }
 
@@ -542,22 +595,28 @@
 
         peerStarted.add(remoteUserId);
         const pc = ensurePeerConnection(remoteUserId);
+
         if (localStream) {
             addLocalTracksToPeer(remoteUserId);
         }
 
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
+        try {
+            const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+            await pc.setLocalDescription(offer);
 
-        socket.send(JSON.stringify({
-            type: 'webrtc-offer',
-            room: roomName,
-            sender: username,
-            sender_id: userId,
-            target_user_id: remoteUserId,
-            role: userRole,
-            offer: offer
-        }));
+            socket.send(JSON.stringify({
+                type: 'webrtc-offer',
+                room: roomName,
+                sender: username,
+                sender_id: userId,
+                target_user_id: remoteUserId,
+                role: userRole,
+                offer: offer
+            }));
+        } catch (error) {
+            console.error('Offer creation failed for peer', remoteUserId, error);
+            peerStarted.delete(remoteUserId);
+        }
     }
 
     async function handleRemoteSignal(payload) {
@@ -610,7 +669,7 @@
             }
 
             localStream = await navigator.mediaDevices.getUserMedia({
-                video: true,
+                video: { facingMode: 'user' },
                 audio: true
             });
 
@@ -628,71 +687,15 @@
 
             updateParticipantList();
             renderParticipantStrip();
+            updateMainDisplay();
+
+            peers.forEach((pc, remoteUserId) => {
+                addLocalTracksToPeer(remoteUserId);
+            });
         } catch (error) {
             console.error('Camera/mic access denied:', error);
             addChatEntry('Kamera yoki mikrofon ruxsatini bersangiz, video/ovoz ulanishi ishlaydi.', 'System');
         }
-    }
-
-    async function shareScreen() {
-        try {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-                throw new Error('Screen share not supported');
-            }
-
-            screenStream = await navigator.mediaDevices.getDisplayMedia({
-                video: { frameRate: 30, cursor: 'always' },
-                audio: true
-            });
-
-            const screenVideo = document.createElement('video');
-            screenVideo.autoplay = true;
-            screenVideo.playsInline = true;
-            screenVideo.muted = true;
-            screenVideo.srcObject = screenStream;
-            screenVideo.style.position = 'absolute';
-            screenVideo.style.inset = '0';
-            screenVideo.style.width = '100%';
-            screenVideo.style.height = '100%';
-            screenVideo.style.objectFit = 'cover';
-            screenVideo.style.zIndex = '30';
-            screenVideo.style.display = 'block';
-            document.getElementById('stageView').appendChild(screenVideo);
-
-            screenStream.getTracks().forEach((track) => {
-                peers.forEach((pc) => {
-                    const alreadyAdded = pc.getSenders().some((sender) => sender.track === track);
-                    if (!alreadyAdded) {
-                        pc.addTrack(track, screenStream);
-                    }
-                });
-            });
-
-            addChatEntry('Ekran ulanishi boshlandi.', 'System');
-
-            screenStream.getVideoTracks()[0].addEventListener('ended', () => {
-                screenVideo.remove();
-            });
-        } catch (error) {
-            console.error('Screen share error:', error);
-            addChatEntry('Ekran ulashish bekor qilindi yoki ruxsat berilmadi.', 'System');
-        }
-    }
-
-    function sendChat() {
-        const message = chatInput.value.trim();
-        if (!message) return;
-
-        addChatEntry(message, username);
-        socket.send(JSON.stringify({
-            type: 'chat-message',
-            room: roomName,
-            sender: username,
-            sender_id: userId,
-            role: userRole,
-            message
-        }));
-        chatInput.value = '';
     }
 
     function sendMuteCommand(type, targetId = null) {
@@ -714,16 +717,16 @@
         const shouldMute = type === 'mute_all' || type === 'mute_user';
 
         if (type === 'mute_all') {
-            if (localStream) {
+            if (localStream && userRole !== 'teacher') {
                 localStream.getAudioTracks().forEach((track) => {
-                    if (userRole !== 'teacher') {
-                        track.enabled = false;
-                    }
+                    track.enabled = false;
                 });
             }
-            micIndicator.textContent = 'Mic off';
-            toggleMicBtn.textContent = 'Mikrofonni yoqish';
-            mediaEnabled = false;
+            if (userRole !== 'teacher') {
+                micIndicator.textContent = 'Mic off';
+                toggleMicBtn.textContent = 'Mikrofonni yoqish';
+                mediaEnabled = false;
+            }
             return;
         }
 
@@ -737,6 +740,108 @@
             toggleMicBtn.textContent = shouldMute ? 'Mikrofonni yoqish' : 'Mikrofonni o\'chirish';
             mediaEnabled = !shouldMute;
         }
+    }
+
+    function syncScreenShareState(active, ownerId) {
+        screenSharingActive = Boolean(active);
+        screenOwnerId = ownerId != null ? Number(ownerId) : null;
+        updateMainDisplay();
+    }
+
+    async function stopScreenShare({ silent = false } = {}) {
+        if (screenStream) {
+            screenTrackRefs.forEach((track) => {
+                peers.forEach((pc) => {
+                    const sender = pc.getSenders().find((candidate) => candidate.track === track);
+                    if (sender) {
+                        pc.removeTrack(sender);
+                    }
+                });
+            });
+            screenTrackRefs.clear();
+
+            screenStream.getTracks().forEach((track) => track.stop());
+            screenStream = null;
+        }
+
+        syncScreenShareState(false, null);
+        if (!silent) {
+            addChatEntry('Ekran ulanishi to\'xtatildi.', 'System');
+        }
+
+        socket.send(JSON.stringify({
+            type: 'screen-share-stop',
+            room: roomName,
+            sender: username,
+            sender_id: userId,
+            role: userRole,
+            screen_share_active: false,
+            screen_owner_id: userId
+        }));
+    }
+
+    async function shareScreen() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+            addChatEntry('Bu brauzer ekran ulashishni qo\'llab-quvvatlamaydi.', 'System');
+            return;
+        }
+
+        try {
+            screenStream = await navigator.mediaDevices.getDisplayMedia({
+                video: { frameRate: 30, cursor: 'always' },
+                audio: true
+            });
+
+            screenSharingActive = true;
+            screenOwnerId = userId;
+            screenStream.getVideoTracks().forEach((track) => {
+                screenTrackRefs.add(track);
+                track.addEventListener('ended', () => stopScreenShare({ silent: true }));
+            });
+
+            peers.forEach((pc, remoteUserId) => {
+                if (screenStream) {
+                    screenStream.getTracks().forEach((track) => {
+                        const alreadyAdded = pc.getSenders().some((sender) => sender.track === track);
+                        if (!alreadyAdded) {
+                            pc.addTrack(track, screenStream);
+                        }
+                    });
+                }
+            });
+
+            socket.send(JSON.stringify({
+                type: 'screen-share-start',
+                room: roomName,
+                sender: username,
+                sender_id: userId,
+                role: userRole,
+                screen_share_active: true,
+                screen_owner_id: userId
+            }));
+
+            addChatEntry('Ekran ulanishi boshlandi.', 'System');
+            updateMainDisplay();
+        } catch (error) {
+            console.error('Screen share error:', error);
+            addChatEntry('Ekran ulashish bekor qilindi yoki ruxsat berilmadi.', 'System');
+        }
+    }
+
+    function sendChat() {
+        const message = chatInput.value.trim();
+        if (!message) return;
+
+        addChatEntry(message, username);
+        socket.send(JSON.stringify({
+            type: 'chat-message',
+            room: roomName,
+            sender: username,
+            sender_id: userId,
+            role: userRole,
+            message
+        }));
+        chatInput.value = '';
     }
 
     function toggleParticipants() {
@@ -779,6 +884,7 @@
             const payload = JSON.parse(event.data);
 
             if (payload.type === 'session_state') {
+                teacherId = Number(payload.teacher_id || teacherId);
                 return;
             }
 
@@ -805,6 +911,7 @@
 
                 updateParticipantList();
                 renderParticipantStrip();
+                updateMainDisplay();
                 addChatEntry(payload.message, payload.sender || 'System');
                 return;
             }
@@ -837,6 +944,16 @@
                     toggleMicBtn.textContent = 'Mikrofonni o\'chirish';
                     mediaEnabled = true;
                 }
+                return;
+            }
+
+            if (payload.type === 'screen-share-start') {
+                syncScreenShareState(true, payload.screen_owner_id ?? payload.sender_id);
+                return;
+            }
+
+            if (payload.type === 'screen-share-stop') {
+                syncScreenShareState(false, null);
                 return;
             }
 
@@ -877,12 +994,25 @@
 
     toggleMicBtn.addEventListener('click', () => {
         if (!localStream) return;
-        mediaEnabled = !mediaEnabled;
+        if (userRole === 'teacher') {
+            mediaEnabled = !mediaEnabled;
+            localStream.getAudioTracks().forEach((track) => {
+                track.enabled = mediaEnabled;
+            });
+            micIndicator.textContent = mediaEnabled ? 'Mic on' : 'Mic off';
+            toggleMicBtn.textContent = mediaEnabled ? 'Mikrofonni o\'chirish' : 'Mikrofonni yoqish';
+            return;
+        }
 
+        const mutedByHost = userRole !== 'teacher' && screenOwnerId !== null;
+        if (mutedByHost) {
+            return;
+        }
+
+        mediaEnabled = !mediaEnabled;
         localStream.getAudioTracks().forEach((track) => {
             track.enabled = mediaEnabled;
         });
-
         micIndicator.textContent = mediaEnabled ? 'Mic on' : 'Mic off';
         toggleMicBtn.textContent = mediaEnabled ? 'Mikrofonni o\'chirish' : 'Mikrofonni yoqish';
     });
@@ -917,6 +1047,7 @@
 
     updateParticipantList();
     renderParticipantStrip();
+    updateMainDisplay();
 </script>
 </body>
 </html>
