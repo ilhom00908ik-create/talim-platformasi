@@ -218,14 +218,18 @@ def teacher_dashboard(request):
     courses = Course.objects.filter(teacher=request.user)
     tests = Test.objects.filter(teacher=request.user)
     live_lessons = LiveLesson.objects.filter(teacher=request.user).order_by('-created_at')
+    attempts = TestAttempt.objects.filter(test__teacher=request.user).select_related('student', 'test').order_by('-submitted_at')
 
     context = {
         'application': application,
         'courses': courses,
         'tests': tests,
         'live_lessons': live_lessons,
+        'attempts': attempts,
+        'test_form': TestForm(),
+        'question_form': TestQuestionForm(),
     }
-    return render(request, 'teachers_dashboard.html', context)
+    return render(request, 'online_urgat/teacher_dashboard.html', context)
 
 
 @login_required(login_url='/online-urgat/login/')
