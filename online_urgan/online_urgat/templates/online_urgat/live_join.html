@@ -261,6 +261,10 @@
                         </div>
                     </div>
 
+                    <div id="rtcDebugPanel" class="mb-3 rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-[11px] text-cyan-100">
+                        RTC holati: tayyorlanmoqda...
+                    </div>
+
                     <div class="live-shell">
                         <div id="stageView" class="stage">
                             <video id="remoteVideo" class="main-video" autoplay playsinline></video>
@@ -341,12 +345,38 @@
     const toggleParticipantsBtn = document.getElementById('toggleParticipantsBtn');
     const toggleFullscreenBtn = document.getElementById('toggleFullscreenBtn');
     const micIndicator = document.getElementById('micIndicator');
+    const rtcDebugPanel = document.getElementById('rtcDebugPanel');
 
     const lessonId = {{ lesson.id }};
     const username = '{{ request.user.get_full_name|default:request.user.username|escapejs }}';
     const userRole = '{{ is_teacher|yesno:"teacher,student" }}';
     const userId = Number('{{ request.user.id }}');
     const roomName = `live_lesson_${lessonId}`;
+    const rtcConfig = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' }
+        ],
+        iceCandidatePoolSize: 0
+    };
+
+    function setDebugStatus(message) {
+        if (rtcDebugPanel) {
+            rtcDebugPanel.textContent = message;
+        }
+    }
+
+    function debugLog(label, payload = '') {
+        const stamp = new Date().toLocaleTimeString('uz-UZ', { hour12: false });
+        const message = `[live-room][${stamp}] ${label}`;
+        console.log(message, payload);
+        if (label.includes('webrtc') || label.includes('peer') || label.includes('media')) {
+            setDebugStatus(`${label}: ${JSON.stringify(payload).slice(0, 120)}`);
+        }
+    }
 
     const socketUrl = (() => {
         const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
@@ -357,7 +387,8 @@
 
     const participants = new Map();
     const peers = new Map();
-    const peerStarted = new Set();
+    const peerNegotiation = new Set();
+    const remoteStreams = new Map();
     const screenTrackRefs = new Set();
     let localStream = null;
     let screenStream = null;
@@ -366,28 +397,117 @@
     let teacherId = null;
     let screenOwnerId = null;
     let screenSharingActive = false;
+    let roomReady = false;
 
-    const rtcConfig = {
-        iceServers: [
-            { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }
-        ]
-    };
-
-    function setMainVideoStream(stream) {
+    function setLocalVideoSource(stream) {
+        if (!localVideo) return;
         if (!stream) {
-            remoteVideo.srcObject = null;
+            localVideo.srcObject = null;
             return;
         }
-        remoteVideo.srcObject = stream;
+        localVideo.srcObject = stream;
+        localVideo.muted = true;
+        localVideo.autoplay = true;
+        localVideo.playsInline = true;
+        localVideo.play().catch(() => {});
+    }
+
+    function safeSetRemoteDescription(pc, description) {
+        if (!pc || !description) return Promise.resolve();
+        if (pc.signalingState === 'closed') return Promise.resolve();
+        return pc.setRemoteDescription(description).catch((error) => {
+            console.warn('setRemoteDescription failed:', error);
+        });
+    }
+
+    function safeAddIceCandidate(pc, candidate) {
+        if (!pc || !candidate) return Promise.resolve();
+        if (pc.signalingState === 'closed') return Promise.resolve();
+        return pc.addIceCandidate(candidate).catch((error) => {
+            console.warn('ICE candidate ignored:', error);
+        });
+    }
+
+    function mergeRemoteTrack(remoteUserId, track) {
+        if (!track) return;
+
+        let existing = remoteStreams.get(remoteUserId) || new MediaStream();
+        const hasTrack = existing.getTracks().some((item) => item.id === track.id);
+        if (!hasTrack) {
+            existing.addTrack(track);
+        }
+        remoteStreams.set(remoteUserId, existing);
+
+        const participant = participants.get(remoteUserId) || {
+            id: remoteUserId,
+            name: `User ${remoteUserId}`,
+            role: 'student',
+            stream: null,
+            isActive: true
+        };
+        participant.stream = existing;
+        participants.set(remoteUserId, participant);
+    }
+
+    function refreshStageForParticipant(remoteUserId) {
+        const stream = remoteStreams.get(remoteUserId);
+        if (!stream) return;
+
+        const tile = participantStrip.querySelector(`[data-user-id="${remoteUserId}"]`);
+        if (tile) {
+            const video = tile.querySelector('video');
+            if (video) attachStreamToVideo(video, stream);
+        }
+
+        if (remoteUserId === teacherId || userRole === 'student') {
+            updateMainDisplay();
+        }
+    }
+
+    function attachStreamToVideo(videoEl, stream) {
+        if (!videoEl || !stream) return;
+        videoEl.srcObject = stream;
+        videoEl.autoplay = true;
+        videoEl.playsInline = true;
+        videoEl.muted = false;
+        videoEl.play().catch(() => {});
+    }
+
+    function getMainStreamForUser(peerId) {
+        const participant = participants.get(peerId);
+        if (!participant || !participant.stream) return null;
+
+        if (screenSharingActive && screenOwnerId === peerId) {
+            const screenTrack = participant.stream.getVideoTracks().find((track) => /(screen|window|display|tab)/i.test(track.label || ''));
+            if (screenTrack) {
+                return new MediaStream([screenTrack]);
+            }
+        }
+
+        const firstVideoTrack = participant.stream.getVideoTracks()[0];
+        if (firstVideoTrack) {
+            return new MediaStream([firstVideoTrack]);
+        }
+
+        return null;
+    }
+
+    function setMainVideo(stream) {
+        if (!remoteVideo) return;
+        remoteVideo.srcObject = stream || null;
+        remoteVideo.autoplay = true;
+        remoteVideo.playsInline = true;
+        remoteVideo.muted = false;
+        if (stream) remoteVideo.play().catch(() => {});
     }
 
     function updateMainDisplay() {
-        if (screenSharingActive && screenOwnerId !== null) {
+        if (screenSharingActive && screenOwnerId != null) {
             const owner = participants.get(screenOwnerId);
             if (owner && owner.stream) {
                 const screenTrack = owner.stream.getVideoTracks().find((track) => /(screen|window|display|tab)/i.test(track.label || ''));
                 if (screenTrack) {
-                    setMainVideoStream(new MediaStream([screenTrack]));
+                    setMainVideo(new MediaStream([screenTrack]));
                     return;
                 }
             }
@@ -395,17 +515,14 @@
 
         const preferredId = userRole === 'student' ? teacherId : [...participants.keys()].find((id) => id !== userId && id !== screenOwnerId);
         if (preferredId != null) {
-            const participant = participants.get(preferredId);
-            if (participant && participant.stream) {
-                const videoTrack = participant.stream.getVideoTracks()[0];
-                if (videoTrack) {
-                    setMainVideoStream(new MediaStream([videoTrack]));
-                    return;
-                }
+            const stream = getMainStreamForUser(preferredId);
+            if (stream) {
+                setMainVideo(stream);
+                return;
             }
         }
 
-        setMainVideoStream(null);
+        setMainVideo(null);
     }
 
     function addChatEntry(message, sender = 'System') {
@@ -485,7 +602,7 @@
             video.playsInline = true;
             video.muted = true;
             if (participant.stream) {
-                video.srcObject = participant.stream;
+                attachStreamToVideo(video, participant.stream);
             }
 
             const meta = document.createElement('div');
@@ -499,14 +616,14 @@
     }
 
     function ensurePeerConnection(remoteUserId) {
-        if (peers.has(remoteUserId)) {
-            return peers.get(remoteUserId);
-        }
+        if (peers.has(remoteUserId)) return peers.get(remoteUserId);
 
         const pc = new RTCPeerConnection(rtcConfig);
+        pc.remoteUserId = remoteUserId;
 
         pc.onicecandidate = (event) => {
             if (event.candidate && socket.readyState === WebSocket.OPEN) {
+                debugLog('webrtc-candidate', { remoteUserId, candidate: event.candidate.toJSON() });
                 socket.send(JSON.stringify({
                     type: 'webrtc-candidate',
                     room: roomName,
@@ -519,104 +636,85 @@
             }
         };
 
+        pc.onnegotiationneeded = async () => {
+            if (peerNegotiation.has(remoteUserId)) return;
+            peerNegotiation.add(remoteUserId);
+            try {
+                if (pc.signalingState !== 'stable') return;
+                const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+                await pc.setLocalDescription(offer);
+                debugLog('webrtc-offer-sent', { remoteUserId, offerType: offer.type });
+                socket.send(JSON.stringify({
+                    type: 'webrtc-offer',
+                    room: roomName,
+                    sender: username,
+                    sender_id: userId,
+                    target_user_id: remoteUserId,
+                    role: userRole,
+                    offer: offer
+                }));
+            } catch (error) {
+                console.error('Renegotiation failed for', remoteUserId, error);
+            } finally {
+                peerNegotiation.delete(remoteUserId);
+            }
+        };
+
         pc.ontrack = (event) => {
-            const stream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream([event.track]);
-            const incomingParticipant = participants.get(remoteUserId) || {
+            const incomingTrack = event.track;
+            const stream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream();
+            if (!stream.getTracks().includes(incomingTrack)) {
+                stream.addTrack(incomingTrack);
+            }
+
+            mergeRemoteTrack(remoteUserId, incomingTrack);
+            debugLog('remote-track', {
+                remoteUserId,
+                kind: incomingTrack.kind,
+                label: incomingTrack.label,
+                streamTracks: stream.getTracks().length
+            });
+
+            const participant = participants.get(remoteUserId) || {
                 id: remoteUserId,
                 name: `User ${remoteUserId}`,
                 role: 'student',
                 stream: null,
                 isActive: true
             };
+            participant.stream = remoteStreams.get(remoteUserId) || stream;
+            participants.set(remoteUserId, participant);
 
-            incomingParticipant.stream = stream;
-            participants.set(remoteUserId, incomingParticipant);
-
-            const tile = participantStrip.querySelector(`[data-user-id="${remoteUserId}"]`);
-            if (tile) {
-                const tileVideo = tile.querySelector('video');
-                if (tileVideo) tileVideo.srcObject = stream;
-            }
-
-            const trackLabel = (event.track && event.track.label ? event.track.label : '').toLowerCase();
-            const isScreenTrack = /(screen|window|display|tab)/i.test(trackLabel);
-            if (screenSharingActive && screenOwnerId === remoteUserId && isScreenTrack) {
-                setMainVideoStream(new MediaStream([event.track]));
-            } else if (screenOwnerId === null || remoteUserId !== screenOwnerId) {
-                const videoTrack = stream.getVideoTracks()[0] || event.track;
-                if (videoTrack && videoTrack.kind === 'video') {
-                    setMainVideoStream(new MediaStream([videoTrack]));
-                }
-            }
-
-            updateParticipantList();
+            refreshStageForParticipant(remoteUserId);
             renderParticipantStrip();
+            updateParticipantList();
+            updateMainDisplay();
+        };
+
+        pc.oniceconnectionstatechange = () => {
+            debugLog('peer-ice-state', { remoteUserId, state: pc.iceConnectionState });
+            if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+                console.log('Peer connected:', remoteUserId);
+                debugLog('peer-connected', { remoteUserId });
+            }
+            if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'closed') {
+                peers.delete(remoteUserId);
+                peerNegotiation.delete(remoteUserId);
+                remoteStreams.delete(remoteUserId);
+            }
         };
 
         pc.onconnectionstatechange = () => {
-            if (pc.connectionState === 'connected') {
-                console.log('Peer connected:', remoteUserId);
-            }
+            debugLog('peer-connection-state', { remoteUserId, state: pc.connectionState });
             if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
                 peers.delete(remoteUserId);
-                peerStarted.delete(remoteUserId);
+                peerNegotiation.delete(remoteUserId);
+                remoteStreams.delete(remoteUserId);
             }
         };
 
         peers.set(remoteUserId, pc);
         return pc;
-    }
-
-    function addLocalTracksToPeer(remoteUserId) {
-        const pc = ensurePeerConnection(remoteUserId);
-        const streamList = [];
-
-        if (localStream) {
-            streamList.push(localStream);
-        }
-        if (screenStream && userId === screenOwnerId) {
-            streamList.push(screenStream);
-        }
-
-        streamList.forEach((stream) => {
-            stream.getTracks().forEach((track) => {
-                const alreadyAdded = pc.getSenders().some((sender) => sender.track === track);
-                if (!alreadyAdded) {
-                    pc.addTrack(track, stream);
-                }
-            });
-        });
-    }
-
-    async function startPeerWithUser(remoteUserId) {
-        if (remoteUserId === userId || peerStarted.has(remoteUserId)) {
-            return;
-        }
-
-        peerStarted.add(remoteUserId);
-        const pc = ensurePeerConnection(remoteUserId);
-
-        if (localStream) {
-            addLocalTracksToPeer(remoteUserId);
-        }
-
-        try {
-            const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
-            await pc.setLocalDescription(offer);
-
-            socket.send(JSON.stringify({
-                type: 'webrtc-offer',
-                room: roomName,
-                sender: username,
-                sender_id: userId,
-                target_user_id: remoteUserId,
-                role: userRole,
-                offer: offer
-            }));
-        } catch (error) {
-            console.error('Offer creation failed for peer', remoteUserId, error);
-            peerStarted.delete(remoteUserId);
-        }
     }
 
     async function handleRemoteSignal(payload) {
@@ -627,14 +725,14 @@
 
         if (payload.type === 'webrtc-offer' && payload.offer) {
             if (remoteUserId === userId) return;
-            if (!localStream) {
-                await startLocalMedia();
-            }
-            await addLocalTracksToPeer(remoteUserId);
+            if (!localStream) await startLocalMedia();
+            addLocalTracksToPeer(remoteUserId);
 
-            await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
-            const answer = await pc.createAnswer();
+            debugLog('webrtc-offer-received', { remoteUserId, offerType: payload.offer.type });
+            await safeSetRemoteDescription(pc, new RTCSessionDescription(payload.offer));
+            const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await pc.setLocalDescription(answer);
+            debugLog('webrtc-answer-sent', { remoteUserId, answerType: answer.type });
 
             socket.send(JSON.stringify({
                 type: 'webrtc-answer',
@@ -649,16 +747,14 @@
         }
 
         if (payload.type === 'webrtc-answer' && payload.answer) {
-            await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
+            debugLog('webrtc-answer-received', { remoteUserId, answerType: payload.answer.type });
+            await safeSetRemoteDescription(pc, new RTCSessionDescription(payload.answer));
             return;
         }
 
         if (payload.type === 'webrtc-candidate' && payload.candidate) {
-            try {
-                await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
-            } catch (error) {
-                console.warn('ICE candidate ignore:', error);
-            }
+            debugLog('webrtc-candidate-received', { remoteUserId, candidate: payload.candidate });
+            await safeAddIceCandidate(pc, new RTCIceCandidate(payload.candidate));
         }
     }
 
@@ -668,212 +764,122 @@
                 throw new Error('getUserMedia not supported');
             }
 
-            localStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'user' },
-                audio: true
-            });
+            if (localStream) {
+                await connectToAllPeers();
+                return;
+            }
 
-            localVideo.srcObject = localStream;
+            const mediaConstraints = {
+                video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    channelCount: 1
+                }
+            };
+
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
+            } catch (videoError) {
+                console.warn('Camera access failed, retrying without video:', videoError);
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: false,
+                    audio: mediaConstraints.audio
+                });
+            }
+
+            setLocalVideoSource(localStream);
+
             micIndicator.textContent = mediaEnabled ? 'Mic on' : 'Mic off';
 
-            const participantSelf = {
+            participants.set(userId, {
                 id: userId,
                 name: username,
                 role: userRole,
                 stream: localStream,
                 isActive: true
-            };
-            participants.set(userId, participantSelf);
+            });
 
             updateParticipantList();
             renderParticipantStrip();
             updateMainDisplay();
 
-            peers.forEach((pc, remoteUserId) => {
+            for (const [remoteUserId, pc] of peers.entries()) {
                 addLocalTracksToPeer(remoteUserId);
-            });
+            }
+
+            await connectToAllPeers();
         } catch (error) {
             console.error('Camera/mic access denied:', error);
             addChatEntry('Kamera yoki mikrofon ruxsatini bersangiz, video/ovoz ulanishi ishlaydi.', 'System');
         }
     }
 
-    function sendMuteCommand(type, targetId = null) {
-        if (userRole !== 'teacher') return;
+    async function connectToAllPeers() {
+        if (!localStream || !roomReady) return;
 
-        socket.send(JSON.stringify({
-            type,
-            room: roomName,
-            sender: username,
-            sender_id: userId,
-            role: userRole,
-            target_user_id: targetId,
-            muted: type === 'mute_user' || type === 'mute_all',
-            muted_by_host: true
-        }));
-    }
-
-    function applyMuteState(type, targetId = null) {
-        const shouldMute = type === 'mute_all' || type === 'mute_user';
-
-        if (type === 'mute_all') {
-            if (localStream && userRole !== 'teacher') {
-                localStream.getAudioTracks().forEach((track) => {
-                    track.enabled = false;
-                });
-            }
-            if (userRole !== 'teacher') {
-                micIndicator.textContent = 'Mic off';
-                toggleMicBtn.textContent = 'Mikrofonni yoqish';
-                mediaEnabled = false;
-            }
-            return;
-        }
-
-        if (targetId === userId) {
-            if (localStream) {
-                localStream.getAudioTracks().forEach((track) => {
-                    track.enabled = !shouldMute;
-                });
-            }
-            micIndicator.textContent = shouldMute ? 'Mic off' : 'Mic on';
-            toggleMicBtn.textContent = shouldMute ? 'Mikrofonni yoqish' : 'Mikrofonni o\'chirish';
-            mediaEnabled = !shouldMute;
+        for (const participant of participants.values()) {
+            if (!participant || participant.id == null || participant.id === userId) continue;
+            if (peers.has(participant.id)) continue;
+            await startPeerWithUser(participant.id);
         }
     }
 
-    function syncScreenShareState(active, ownerId) {
-        screenSharingActive = Boolean(active);
-        screenOwnerId = ownerId != null ? Number(ownerId) : null;
-        updateMainDisplay();
-    }
+    async function startPeerWithUser(remoteUserId) {
+        if (remoteUserId === userId || peerNegotiation.has(remoteUserId)) return;
 
-    async function stopScreenShare({ silent = false } = {}) {
-        if (screenStream) {
-            screenTrackRefs.forEach((track) => {
-                peers.forEach((pc) => {
-                    const sender = pc.getSenders().find((candidate) => candidate.track === track);
-                    if (sender) {
-                        pc.removeTrack(sender);
-                    }
-                });
-            });
-            screenTrackRefs.clear();
-
-            screenStream.getTracks().forEach((track) => track.stop());
-            screenStream = null;
-        }
-
-        syncScreenShareState(false, null);
-        if (!silent) {
-            addChatEntry('Ekran ulanishi to\'xtatildi.', 'System');
-        }
-
-        socket.send(JSON.stringify({
-            type: 'screen-share-stop',
-            room: roomName,
-            sender: username,
-            sender_id: userId,
-            role: userRole,
-            screen_share_active: false,
-            screen_owner_id: userId
-        }));
-    }
-
-    async function shareScreen() {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-            addChatEntry('Bu brauzer ekran ulashishni qo\'llab-quvvatlamaydi.', 'System');
-            return;
-        }
-
+        peerNegotiation.add(remoteUserId);
         try {
-            screenStream = await navigator.mediaDevices.getDisplayMedia({
-                video: { frameRate: 30, cursor: 'always' },
-                audio: true
-            });
+            if (!localStream) await startLocalMedia();
+            const pc = ensurePeerConnection(remoteUserId);
+            addLocalTracksToPeer(remoteUserId);
 
-            screenSharingActive = true;
-            screenOwnerId = userId;
-            screenStream.getVideoTracks().forEach((track) => {
-                screenTrackRefs.add(track);
-                track.addEventListener('ended', () => stopScreenShare({ silent: true }));
-            });
-
-            peers.forEach((pc, remoteUserId) => {
-                if (screenStream) {
-                    screenStream.getTracks().forEach((track) => {
-                        const alreadyAdded = pc.getSenders().some((sender) => sender.track === track);
-                        if (!alreadyAdded) {
-                            pc.addTrack(track, screenStream);
-                        }
-                    });
-                }
-            });
+            const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+            await pc.setLocalDescription(offer);
+            debugLog('webrtc-offer-created', { remoteUserId, offerType: offer.type });
 
             socket.send(JSON.stringify({
-                type: 'screen-share-start',
+                type: 'webrtc-offer',
                 room: roomName,
                 sender: username,
                 sender_id: userId,
+                target_user_id: remoteUserId,
                 role: userRole,
-                screen_share_active: true,
-                screen_owner_id: userId
+                offer: offer
             }));
-
-            addChatEntry('Ekran ulanishi boshlandi.', 'System');
-            updateMainDisplay();
         } catch (error) {
-            console.error('Screen share error:', error);
-            addChatEntry('Ekran ulashish bekor qilindi yoki ruxsat berilmadi.', 'System');
+            console.error('Offer creation failed for peer', remoteUserId, error);
+            peerNegotiation.delete(remoteUserId);
+        } finally {
+            peerNegotiation.delete(remoteUserId);
         }
     }
 
-    function sendChat() {
-        const message = chatInput.value.trim();
-        if (!message) return;
+    function addLocalTracksToPeer(remoteUserId) {
+        const pc = ensurePeerConnection(remoteUserId);
+        const streamPool = [];
 
-        addChatEntry(message, username);
-        socket.send(JSON.stringify({
-            type: 'chat-message',
-            room: roomName,
-            sender: username,
-            sender_id: userId,
-            role: userRole,
-            message
-        }));
-        chatInput.value = '';
-    }
+        if (localStream) streamPool.push(localStream);
+        if (screenStream && userId === screenOwnerId) streamPool.push(screenStream);
 
-    function toggleParticipants() {
-        participantsVisible = !participantsVisible;
-        toggleParticipantsBtn.textContent = participantsVisible ? 'Qatnashchilar paneli' : 'Qatnashchilarni ko\'rsat';
-        renderParticipantStrip();
-    }
+        streamPool.forEach((stream) => {
+            stream.getTracks().forEach((track) => {
+                const alreadyAdded = pc.getSenders().some((sender) => sender.track === track);
+                if (!alreadyAdded) {
+                    pc.addTrack(track, stream);
+                }
+            });
+        });
 
-    async function toggleFullScreen() {
-        const target = document.getElementById('stageView');
-        if (!document.fullscreenElement) {
-            if (target.requestFullscreen) {
-                await target.requestFullscreen();
-            }
-        } else {
-            document.exitFullscreen();
+        if (pc.signalingState === 'stable') {
+            pc.dispatchEvent(new Event('negotiationneeded'));
         }
-    }
-
-    function leaveRoom() {
-        if (localStream) {
-            localStream.getTracks().forEach((track) => track.stop());
-        }
-        if (screenStream) {
-            screenStream.getTracks().forEach((track) => track.stop());
-        }
-        peers.forEach((pc) => pc.close());
-        socket.close();
-        window.location.href = '/online-urgat/dashboard/';
     }
 
     socket.onopen = async () => {
+        roomReady = true;
+        setDebugStatus('Socket ochildi: WebSocket tayyor');
         addChatEntry('Darsxona ulanishi muvaffaqiyatli ochildi.', 'System');
         liveStatus.textContent = userRole === 'teacher' ? 'Jonli dars faol' : 'Ulangan';
         await startLocalMedia();
@@ -885,6 +891,7 @@
 
             if (payload.type === 'session_state') {
                 teacherId = Number(payload.teacher_id || teacherId);
+                setDebugStatus(`Session ready: teacher=${teacherId || 'unknown'} role=${payload.role}`);
                 return;
             }
 
@@ -899,13 +906,8 @@
 
                 if (participant.id && participant.id !== userId) {
                     participants.set(participant.id, participant);
-
-                    const shouldStartPeer =
-                        (userRole === 'teacher' && payload.role !== 'teacher') ||
-                        (userRole === 'student' && payload.role === 'teacher');
-
-                    if (shouldStartPeer) {
-                        await startPeerWithUser(participant.id);
+                    if ((userRole === 'teacher' && payload.role !== 'teacher') || (userRole === 'student' && payload.role === 'teacher')) {
+                        await connectToAllPeers();
                     }
                 }
 
@@ -923,6 +925,7 @@
 
             if (payload.type === 'mute_all') {
                 applyMuteState('mute_all');
+                setDebugStatus('Mute all command received');
                 return;
             }
 
@@ -930,6 +933,7 @@
                 if (Number(payload.target_user_id) === userId) {
                     applyMuteState('mute_user', userId);
                 }
+                setDebugStatus(`Mute user target=${payload.target_user_id}`);
                 return;
             }
 
@@ -944,20 +948,24 @@
                     toggleMicBtn.textContent = 'Mikrofonni o\'chirish';
                     mediaEnabled = true;
                 }
+                setDebugStatus(`Unmute user target=${payload.target_user_id}`);
                 return;
             }
 
             if (payload.type === 'screen-share-start') {
                 syncScreenShareState(true, payload.screen_owner_id ?? payload.sender_id);
+                setDebugStatus(`Screen share active: owner=${payload.screen_owner_id ?? payload.sender_id}`);
                 return;
             }
 
             if (payload.type === 'screen-share-stop') {
                 syncScreenShareState(false, null);
+                setDebugStatus('Screen share stopped');
                 return;
             }
 
             if (payload.type && payload.type.startsWith('webrtc-')) {
+                setDebugStatus(`Signal received: ${payload.type} from ${payload.sender_id}`);
                 await handleRemoteSignal(payload);
             }
         } catch (error) {
@@ -967,87 +975,14 @@
 
     socket.onerror = (event) => {
         console.error('WebSocket error:', event);
+        setDebugStatus('WebSocket xatosi: ulanganda qiyinchilik bor');
         liveStatus.textContent = 'Ulanish uzildi';
     };
 
     socket.onclose = () => {
+        setDebugStatus('Socket yopildi: ulanganlik uzildi');
         liveStatus.textContent = 'Ulanish uzildi';
     };
-
-    sendChatBtn.addEventListener('click', sendChat);
-    chatInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-            sendChat();
-        }
-    });
-
-    copyBtn.addEventListener('click', async () => {
-        try {
-            await navigator.clipboard.writeText(window.location.href);
-            copyBtn.textContent = 'Link nusxalandi';
-        } catch (error) {
-            copyBtn.textContent = 'Nusxalab bo\'lmadi';
-        }
-    });
-
-    leaveRoomBtn.addEventListener('click', leaveRoom);
-
-    toggleMicBtn.addEventListener('click', () => {
-        if (!localStream) return;
-        if (userRole === 'teacher') {
-            mediaEnabled = !mediaEnabled;
-            localStream.getAudioTracks().forEach((track) => {
-                track.enabled = mediaEnabled;
-            });
-            micIndicator.textContent = mediaEnabled ? 'Mic on' : 'Mic off';
-            toggleMicBtn.textContent = mediaEnabled ? 'Mikrofonni o\'chirish' : 'Mikrofonni yoqish';
-            return;
-        }
-
-        const mutedByHost = userRole !== 'teacher' && screenOwnerId !== null;
-        if (mutedByHost) {
-            return;
-        }
-
-        mediaEnabled = !mediaEnabled;
-        localStream.getAudioTracks().forEach((track) => {
-            track.enabled = mediaEnabled;
-        });
-        micIndicator.textContent = mediaEnabled ? 'Mic on' : 'Mic off';
-        toggleMicBtn.textContent = mediaEnabled ? 'Mikrofonni o\'chirish' : 'Mikrofonni yoqish';
-    });
-
-    if (muteAllBtn) {
-        muteAllBtn.addEventListener('click', () => sendMuteCommand('mute_all'));
-    }
-
-    shareScreenBtn.addEventListener('click', shareScreen);
-
-    startCallBtn?.addEventListener('click', async () => {
-        if (!localStream) {
-            await startLocalMedia();
-        }
-        for (const participant of participants.values()) {
-            if (participant.id !== userId && !peerStarted.has(participant.id)) {
-                await startPeerWithUser(participant.id);
-            }
-        }
-    });
-
-    toggleParticipantsBtn.addEventListener('click', toggleParticipants);
-    toggleFullscreenBtn.addEventListener('click', toggleFullScreen);
-
-    document.addEventListener('fullscreenchange', () => {
-        if (!document.fullscreenElement) {
-            toggleFullscreenBtn.textContent = "To'liq ekran";
-        } else {
-            toggleFullscreenBtn.textContent = 'Normal ekran';
-        }
-    });
-
-    updateParticipantList();
-    renderParticipantStrip();
-    updateMainDisplay();
 </script>
 </body>
 </html>
