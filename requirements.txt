@@ -47,3 +47,4 @@ daphne
 channels
 psycopg2-binary
 python-dotenv
+whitenoise
