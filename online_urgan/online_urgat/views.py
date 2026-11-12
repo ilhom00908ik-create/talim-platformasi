@@ -9,7 +9,7 @@ from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.shortcuts import redirect, render, get_object_or_404
 from django.utils import timezone
 
-from .forms import TeacherRegistrationForm, TestForm, TestQuestionForm
+from .forms import TeacherRegistrationForm, TestForm, TestQuestionForm, validate_question_file
 from .models import Course, Enrollment, LiveLesson, TeacherApplication, TeacherCertificate, Test, TestAttempt, TestQuestion
 
 
@@ -328,7 +328,7 @@ def add_question_to_test(request, test_id):
             return redirect('online_urgat:teacher_dashboard')
         messages.error(request, 'Savol ma\'lumotlari noto\'g\'ri kiritilgan.')
     else:
-        form = TestQuestionForm()
+        form = TestQuestionForm(initial={'mode': TestQuestion.MODE_TEXT})
 
     return render(request, 'online_urgat/add_question.html', {'test': test, 'form': form})
 
@@ -388,6 +388,71 @@ def add_question_bulk_to_test(request, test_id):
         return redirect('online_urgat:teacher_dashboard')
 
     return render(request, 'online_urgat/add_question_bulk.html', {'test': test, 'question_count': 1})
+
+
+@login_required(login_url='/online-urgat/login/')
+def add_question_file_to_test(request, test_id):
+    """2-rejim: rasm/PDF yuklash orqali savol qo'shish.
+
+    Har bir qatorda faqat fayl va to'g'ri javob harfi (A-D) belgilanadi —
+    uzun variantlar yozish shart emas.
+    """
+    if not teacher_allowed(request.user):
+        return redirect('online_urgat:teacher_pending')
+
+    test = get_object_or_404(Test, id=test_id, teacher=request.user)
+
+    if request.method == 'POST':
+        try:
+            count = max(1, min(10, int(request.POST.get('question_count') or 1)))
+        except ValueError:
+            count = 1
+
+        created = 0
+        errors = []
+        for i in range(count):
+            file = request.FILES.get(f'file_{i}')
+            correct_option = (request.POST.get(f'correct_option_{i}') or '').upper()
+            question_text = (request.POST.get(f'question_text_{i}') or '').strip()
+
+            if not file and not question_text:
+                continue
+            if not file:
+                errors.append(f'{i + 1}-savol: rasm yoki PDF fayl yuklanmadi.')
+                continue
+            if correct_option not in ['A', 'B', 'C', 'D']:
+                errors.append(f'{i + 1}-savol: to\'g\'ri javob harfi (A-D) belgilanmadi.')
+                continue
+            try:
+                validate_question_file(file)
+            except Exception as exc:
+                errors.append(f'{i + 1}-savol: {exc}')
+                continue
+
+            TestQuestion.objects.create(
+                test=test,
+                mode=TestQuestion.MODE_FILE,
+                question_text=question_text,
+                file=file,
+                correct_option=correct_option,
+                order=test.questions.count() + 1,
+            )
+            created += 1
+
+        if created:
+            messages.success(request, f'{created} ta fayl asosidagi savol qo\'shildi.')
+        if errors:
+            messages.warning(request, ' '.join(errors))
+        if not created and not errors:
+            messages.warning(request, 'Hech qanday savol qo\'shilmadi. Kamida bitta fayl yuklang.')
+        if created:
+            return redirect('online_urgat:teacher_dashboard')
+
+    return render(request, 'online_urgat/add_question_file.html', {
+        'test': test,
+        'question_count': 3,
+        'existing_questions': test.questions.all(),
+    })
 
 
 @login_required(login_url='/online-urgat/login/')

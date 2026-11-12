@@ -84,14 +84,27 @@ class Test(models.Model):
 
 
 class TestQuestion(models.Model):
+    # Savol yaratish rejimlari:
+    #   text — odatiy rejim: savol matni + A/B/C/D variantlari qo'lda kiritiladi
+    #   file — fayl rejimi: rasm yoki PDF yuklanadi, faqat to'g'ri javob harfi belgilanadi
+    MODE_TEXT = 'text'
+    MODE_FILE = 'file'
+    MODE_CHOICES = [
+        (MODE_TEXT, 'Odatiy (variantlar bilan)'),
+        (MODE_FILE, 'Rasm/PDF asosida'),
+    ]
+
     test = models.ForeignKey(Test, on_delete=models.CASCADE, related_name='questions')
-    question_text = models.TextField()
+    mode = models.CharField(max_length=10, choices=MODE_CHOICES, default=MODE_TEXT)
+    question_text = models.TextField(blank=True, default='')
     image = models.ImageField(upload_to='question_images/', blank=True, null=True)
     resource_pdf = models.FileField(upload_to='question_resources/', blank=True, null=True)
-    option_a = models.CharField(max_length=255)
-    option_b = models.CharField(max_length=255)
-    option_c = models.CharField(max_length=255)
-    option_d = models.CharField(max_length=255)
+    # Fayl rejimi uchun yagona yuklash maydoni (rasm yoki PDF)
+    file = models.FileField(upload_to='test_files/', blank=True, null=True)
+    option_a = models.CharField(max_length=255, blank=True, default='')
+    option_b = models.CharField(max_length=255, blank=True, default='')
+    option_c = models.CharField(max_length=255, blank=True, default='')
+    option_d = models.CharField(max_length=255, blank=True, default='')
     correct_option = models.CharField(max_length=1, choices=[('A', 'A'), ('B', 'B'), ('C', 'C'), ('D', 'D')])
     order = models.PositiveIntegerField(default=1)
 
@@ -100,6 +113,37 @@ class TestQuestion(models.Model):
 
     def __str__(self):
         return f"{self.test.title} - {self.order}"
+
+    @property
+    def is_file_mode(self):
+        return self.mode == self.MODE_FILE
+
+    @property
+    def display_file(self):
+        """Fayl rejimida ko'rsatiladigan fayl (yangi `file` yoki eski `image`/`resource_pdf`)."""
+        return self.file or self.image or self.resource_pdf
+
+    @property
+    def display_file_url(self):
+        file = self.display_file
+        return file.url if file else ''
+
+    @property
+    def display_file_is_pdf(self):
+        file = self.display_file
+        return bool(file) and str(file.name).lower().endswith('.pdf')
+
+    @property
+    def display_file_is_image(self):
+        file = self.display_file
+        if not file:
+            return False
+        return str(file.name).lower().endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'))
+
+    @property
+    def display_title(self):
+        """Talabaga ko'rinadigan savol sarlavhasi (fayl rejimida matn bo'lmasligi mumkin)."""
+        return self.question_text or f'{self.order}-savol'
 
 
 class Answer(models.Model):

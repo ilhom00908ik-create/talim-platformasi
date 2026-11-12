@@ -32,8 +32,17 @@
             <a href="{% url 'online_urgat:teacher_dashboard' %}" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-white/10">Kabinetga qaytish</a>
         </div>
 
+        {% if test %}
+            <div class="mb-6 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-slate-950/30 p-1.5">
+                <span class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-cyan-500/20">Odatiy rejim</span>
+                <a href="{% url 'online_urgat:add_question_bulk_to_test' test.id %}" class="rounded-xl px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-white/5">Ko'p savol</a>
+                <a href="{% url 'online_urgat:add_question_file_to_test' test.id %}" class="rounded-xl px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-white/5">Rasm/PDF yuklash orqali</a>
+            </div>
+        {% endif %}
+
         <form method="post" enctype="multipart/form-data" class="space-y-5">
             {% csrf_token %}
+            <input type="hidden" name="mode" value="text">
             <div>
                 <label class="mb-2 block text-sm font-medium text-slate-200">Savol matni</label>
                 <textarea name="question_text" rows="3" class="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/80" required>{{ form.question_text.value|default:'' }}</textarea>

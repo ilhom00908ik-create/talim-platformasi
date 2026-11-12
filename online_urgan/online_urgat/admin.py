@@ -46,7 +46,10 @@ class TestAdmin(admin.ModelAdmin):
 
 @admin.register(TestQuestion)
 class TestQuestionAdmin(admin.ModelAdmin):
-    list_display = ('test', 'question_text', 'correct_option')
+    list_display = ('test', 'order', 'mode', 'display_title', 'correct_option')
+    list_filter = ('mode',)
+    fields = ('test', 'mode', 'question_text', 'file', 'image', 'resource_pdf',
+              'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'order')
 
 
 @admin.register(TestAttempt)
