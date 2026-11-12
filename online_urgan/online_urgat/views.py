@@ -25,11 +25,14 @@ def get_teacher_application(user):
     if not user or not user.is_authenticated:
         return None
 
-    application = getattr(user, 'teacherapplication', None)
+    # Har doim bazadan yangi holatni o'qiymiz: bot/admin tomonidan tasdiqlangandan
+    # keyin sessiondagi eski (cache qilingan) ariza reload bo'lmasligi kerak.
+    application = TeacherApplication.objects.filter(user=user).first()
     if application is not None:
         return application
 
-    return TeacherApplication.objects.filter(user=user).first()
+    # Ariza hali yaratilmagan bo'lsa, prefetch qilingan nusxaga tayanamiz.
+    return getattr(user, 'teacherapplication', None)
 
 
 def teacher_application_status(user):
@@ -148,13 +151,20 @@ def login_view(request):
 
 
 def _landing_after_login(user):
-    """Foydalanuvchi rolini hisobga olib to'g'ri kabinetga yo'naltirish."""
+    """Foydalanuvchi rolini hisobga olib to'g'ri kabinetga yo'naltirish.
+
+    Superuser/admin ammo arizasi bo'lmagan foydalanuvchi ham o'qituvchi
+    kabinetiga o'tadi, shuning uchun avval is_superuser tekshiriladi.
+    """
+    if getattr(user, 'is_superuser', False):
+        return 'online_urgat:teacher_dashboard'
+
     status = teacher_application_status(user)
     if status == 'approved':
         return 'online_urgat:teacher_dashboard'
     if status == 'pending':
         return 'online_urgat:teacher_pending'
-    return 'online_urgat:teacher_register'
+    return 'dashboard'
 
 
 def register_view(request):
