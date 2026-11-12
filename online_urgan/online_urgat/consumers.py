@@ -52,6 +52,11 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
         self.is_teacher = user.id == self.lesson.teacher_id
         self.user_role = 'teacher' if self.is_teacher else 'student'
 
+        # Ustoz darsni boshlaganda (yoki darsxonaga kirganda) dars jonli hisoblanadi.
+        if self.is_teacher and not self.lesson.is_live:
+            await self.mark_lesson_live()
+            self.lesson.is_live = True
+
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
 
@@ -93,8 +98,46 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
     def get_lesson(self, lesson_id):
         return LiveLesson.objects.select_related('teacher', 'course').filter(id=lesson_id).first()
 
+    @database_sync_to_async
+    def mark_lesson_live(self):
+        from django.utils import timezone
+
+        if not self.lesson.started_at:
+            self.lesson.started_at = timezone.now()
+        self.lesson.is_live = True
+        self.lesson.save(update_fields=['is_live', 'started_at'])
+
+    @database_sync_to_async
+    def mark_lesson_ended(self):
+        self.lesson.is_live = False
+        self.lesson.started_at = None
+        self.lesson.save(update_fields=['is_live', 'started_at'])
+
     async def disconnect(self, close_code):
+        # Ustoz darsxonadan chiqsa — dars yakunlangan deb belgilanadi.
+        if hasattr(self, 'lesson') and getattr(self, 'is_teacher', False) and self.lesson.is_live:
+            await self.mark_lesson_ended()
+            self.lesson.is_live = False
+
         if hasattr(self, 'room_group_name'):
+            if getattr(self, 'is_teacher', False):
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'broadcast_message',
+                        'payload': {
+                            'type': 'lesson-ended',
+                            'sender': self.user_name,
+                            'sender_id': self.user_id,
+                            'role': 'teacher',
+                            'message': 'Ustoz darsni yakunladi.',
+                            'room': self.room_group_name,
+                        },
+                        'sender_id': self.user_id,
+                        'target_user_id': None,
+                        'exclude_sender': True,
+                    },
+                )
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -141,6 +184,9 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
             if not self.is_teacher:
                 return
             if message_type in {'mute_user', 'unmute_user', 'kick_user'} and target_user_id is None:
+                return
+            # O'zini o'zi darsdan chiqarib yuborishga yo'l qo'yilmaydi
+            if message_type == 'kick_user' and target_user_id == self.user_id:
                 return
 
         payload = {

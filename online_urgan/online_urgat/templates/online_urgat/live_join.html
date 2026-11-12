@@ -678,6 +678,7 @@
                     <div class="mt-2 flex gap-2">
                         <button type="button" data-mute-user="${participant.id}" class="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-semibold">Mute</button>
                         <button type="button" data-unmute-user="${participant.id}" class="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-semibold">Unmute</button>
+                        <button type="button" data-kick-user="${participant.id}" class="rounded-lg border border-rose-400/30 bg-rose-500/10 px-2 py-1 text-[10px] font-semibold text-rose-100">Chiqarish</button>
                     </div>
                 ` : ''}
             `;
@@ -695,6 +696,16 @@
             btn.addEventListener('click', () => {
                 const targetId = Number(btn.dataset.unmuteUser);
                 sendMuteCommand('unmute_user', targetId);
+            });
+        });
+
+        document.querySelectorAll('[data-kick-user]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const targetId = Number(btn.dataset.kickUser);
+                const target = participants.get(targetId);
+                const name = target ? target.name : 'Foydalanuvchi';
+                if (!window.confirm(`${name}ni darsdan chiqarishni tasdiqlaysizmi?`)) return;
+                sendSignal('kick_user', { target_user_id: targetId });
             });
         });
     }
@@ -1220,6 +1231,7 @@
                 startCallBtn.textContent = 'Dars yoqilgan';
                 startCallBtn.disabled = true;
                 startCallBtn.classList.add('opacity-60');
+                if (liveStatus) liveStatus.textContent = 'Jonli dars faol';
             });
         }
 
@@ -1347,7 +1359,8 @@
                     id: payload.user_id,
                     name: payload.user_name || 'User',
                     role: payload.role || 'student',
-                    stream: null,
+                    // presence kelganda allaqachon MediaStream yaratilgan bo'lishi mumkin — uni saqlab qolamiz
+                    stream: remoteStreams.get(payload.user_id) || null,
                     isActive: true,
                 };
                 participant.name = payload.user_name || participant.name;
@@ -1383,7 +1396,7 @@
                         id: payload.sender_id,
                         name: payload.sender || 'User',
                         role: payload.role || 'student',
-                        stream: null,
+                        stream: remoteStreams.get(payload.sender_id) || null,
                         isActive: true,
                     };
                     participant.name = payload.sender || participant.name;
@@ -1395,6 +1408,7 @@
                     if (payload.sender_id !== userId && payload.sender_id != null) {
                         startPeerWithUser(payload.sender_id);
                     }
+                    updateMainDisplay();
                 }
                 if (payload.message) {
                     addChatEntry(payload.message, payload.sender || 'System');
@@ -1416,6 +1430,11 @@
                 if (payload.type === 'mute_all' || payload.type === 'unmute_all') {
                     // Host o'zining mikrofonini "mute all" bilan o'chirmaydi
                     if (userRole !== 'teacher') applyMuteState(payload.type, userId);
+                    // Host tugma holatini server tasdig'i bo'yicha yangilaydi
+                    if (userRole === 'teacher' && muteAllBtn) {
+                        muteAllBtn.dataset.muted = payload.type === 'mute_all' ? '1' : '0';
+                        updateMuteAllButtonState();
+                    }
                 } else if (targetIsMe) {
                     applyMuteState(payload.type, userId);
                 } else if (targetId !== null) {
@@ -1436,6 +1455,23 @@
                 if (speaker) {
                     speaker.micMuted = !!payload.muted;
                     updateParticipantList();
+                }
+                return;
+            }
+
+            if (payload.type === 'lesson-ended') {
+                liveStatus.textContent = 'Dars yakunlandi';
+                addChatEntry(payload.message || 'Dars yakunlandi.', 'System');
+                return;
+            }
+
+            if (payload.type === 'kick_user') {
+                if (Number(payload.target_user_id) === userId) {
+                    addChatEntry('Ustoz sizni darsdan chiqardi.', 'System');
+                    if (screenStream) stopScreenShareTracks({ notify: false });
+                    if (localStream) localStream.getTracks().forEach((track) => track.stop());
+                    try { socket.close(); } catch (error) { /* ignore */ }
+                    setTimeout(() => { window.location.href = homeUrl; }, 1200);
                 }
                 return;
             }
