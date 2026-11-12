@@ -1,5 +1,4 @@
 {% extends 'accounts/base.html' %}
-
 {% block title %}Profil - MathPlatform{% endblock %}
 
 {% block content %}
@@ -7,27 +6,47 @@
     <div class="grid gap-6 md:grid-cols-3">
         <!-- Chap tomon: Hisob va Rasm -->
         <div class="glass rounded-[30px] p-6 text-center">
-            <div class="mx-auto flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-gradient-to-br from-cyan-500/30 to-violet-500/30 text-5xl shadow-lg shadow-cyan-500/20">
+            <div
+                class="mx-auto flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-gradient-to-br from-cyan-500/30 to-violet-500/30 text-5xl shadow-lg shadow-cyan-500/20">
+                {% if application and application.photo %}
+                <img src="{{ application.photo.url }}" alt="{{ user.username }}" class="h-full w-full object-cover">
+                {% else %}
                 👤
+                {% endif %}
             </div>
             <h3 class="mt-5 text-2xl font-black text-white">{{ user.get_full_name|default:user.username }}</h3>
-            <p class="mt-2 text-sm text-slate-300">{{ profile.phone_or_email|default:user.email|default:'Telefon/Email mavjud emas' }}</p>
+            <p class="mt-2 text-sm text-slate-300">{{ profile.phone_or_email|default:user.email|default:'Telefon/Email
+                mavjud emas' }}</p>
 
-            <!-- Hisob balansi -->
             <div class="mt-6 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-4 text-left">
                 <span class="text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200">Foydalanuvchi</span>
                 <div class="mt-2 text-lg font-black text-cyan-100">{{ user.username }}</div>
             </div>
+
+            {% if is_teacher %}
+            <a href="{% url 'online_urgat:teacher_dashboard' %}"
+                class="mt-4 block rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 font-bold text-white shadow-lg shadow-cyan-500/20 hover:opacity-95">O'qituvchi
+                kabineti</a>
+            {% elif teacher_status == 'pending' %}
+            <a href="{% url 'online_urgat:teacher_pending' %}"
+                class="mt-4 block rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 font-semibold text-amber-100 hover:bg-amber-500/20">Ariza
+                ko'rib chiqilmoqda</a>
+            {% else %}
+            <a href="{% url 'online_urgat:teacher_register' %}"
+                class="mt-4 block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 font-semibold text-white hover:bg-white/10">O'qituvchi
+                bo'lish uchun ariza</a>
+            {% endif %}
         </div>
 
-        <!-- O'ng tomon: Ma'lumotlarni tahrirlash -->
+        <!-- O'ng tomon: Ma'lumotlar -->
         <div class="glass rounded-[30px] p-6 md:col-span-2">
             <h2 class="text-3xl font-black text-white">Profil ma'lumotlari</h2>
             <div class="mt-6 space-y-4 text-slate-200">
                 <div class="grid gap-4 md:grid-cols-2">
                     <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                         <div class="text-xs uppercase tracking-[0.2em] text-slate-400">Ism</div>
-                        <div class="mt-2 text-lg font-semibold text-white">{{ user.get_full_name|default:'Kiritilmagan' }}</div>
+                        <div class="mt-2 text-lg font-semibold text-white">{{ user.get_full_name|default:'Kiritilmagan'
+                            }}</div>
                     </div>
                     <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                         <div class="text-xs uppercase tracking-[0.2em] text-slate-400">Username</div>
@@ -37,13 +56,34 @@
 
                 <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <div class="text-xs uppercase tracking-[0.2em] text-slate-400">Email / Telefon</div>
-                    <div class="mt-2 text-lg font-semibold text-white">{{ profile.phone_or_email|default:user.email|default:'Mavjud emas' }}</div>
+                    <div class="mt-2 text-lg font-semibold text-white">{{
+                        profile.phone_or_email|default:user.email|default:'Mavjud emas' }}</div>
                 </div>
 
-                <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div class="text-xs uppercase tracking-[0.2em] text-slate-400">Status</div>
-                    <div class="mt-2 text-lg font-semibold text-emerald-300">Faol foydalanuvchi</div>
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <div class="text-xs uppercase tracking-[0.2em] text-slate-400">Rol</div>
+                        <div class="mt-2 text-lg font-semibold text-white">
+                            {% if is_teacher %}O'qituvchi{% elif teacher_status == 'pending' %}O'qituvchi
+                            (tasdiqlanmagan){% else %}O'quvchi{% endif %}
+                        </div>
+                    </div>
+                    <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <div class="text-xs uppercase tracking-[0.2em] text-slate-400">Holat</div>
+                        <div
+                            class="mt-2 text-lg font-semibold {% if profile.is_verified %}text-emerald-300{% else %}text-amber-300{% endif %}">
+                            {% if profile.is_verified %}Tasdiqlangan{% else %}Tasdiqlanmagan{% endif %}
+                        </div>
+                    </div>
                 </div>
+
+                {% if application %}
+                <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div class="text-xs uppercase tracking-[0.2em] text-slate-400">O'qituvchi arizasi</div>
+                    <div class="mt-2 text-sm text-slate-200">Tajriba: {{ application.experience_years }} yil</div>
+                    <div class="mt-1 text-sm text-slate-400">{{ application.phone }}</div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>

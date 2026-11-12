@@ -13,7 +13,7 @@ class TeacherApplication(models.Model):
 
     @property
     def is_verified(self):
-        return self.is_approved and self.user.is_staff
+        return self.is_approved
 
     def __str__(self):
         return f"{self.user.username} - ariza"
@@ -25,7 +25,7 @@ class TeacherApplication(models.Model):
         self.save(update_fields=['is_approved'])
 
         profile = getattr(self.user, 'userprofile', None) or getattr(self.user, 'profile', None)
-        if profile is not None:
+        if profile is not None and hasattr(profile, 'is_verified'):
             profile.is_verified = True
             profile.save(update_fields=['is_verified'])
 

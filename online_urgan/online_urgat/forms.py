@@ -3,16 +3,38 @@ from django import forms
 from .models import TeacherApplication, Test, TestQuestion
 
 
+# O'qituvchi arizasi formasi.
+# Eslatma: TeacherRegistrationForm dinamik qo'shiladigan 'certificate_pdf' maydoniga
+# ega emas edi, shu sabab clean_certificate_pdf() hech qachon chaqirilmasdi.
+# Endi fayl ModelForm maydoni sifatida aniq e'lon qilingan — yuklangan fayllar
+# teacher_register_view ichida TeacherCertificate ga bog'lanadi.
 class TeacherRegistrationForm(forms.ModelForm):
+    certificate_pdf = forms.FileField(
+        required=False,
+        widget=forms.ClearableFileInput(attrs={'accept': '.pdf,image/*'}),
+    )
+
     class Meta:
         model = TeacherApplication
         fields = ['phone', 'bio', 'experience_years', 'photo']
+        widgets = {
+            'phone': forms.TextInput(attrs={'placeholder': '+998 90 123 45 67'}),
+            'bio': forms.Textarea(attrs={'rows': 4}),
+            'experience_years': forms.NumberInput(attrs={'min': 0}),
+        }
+
+    def clean_phone(self):
+        phone = (self.cleaned_data.get('phone') or '').strip()
+        if len(phone) < 7:
+            raise forms.ValidationError('Telefon raqamni to\'liq kiriting.')
+        return phone
 
     def clean_certificate_pdf(self):
         file = self.cleaned_data.get('certificate_pdf')
         if file:
-            if not file.name.endswith('.pdf'):
-                raise forms.ValidationError('Faqat PDF formatidagi fayllarni yuklash mumkin!')
+            allowed = ('.pdf', '.jpg', '.jpeg', '.png', '.webp')
+            if not file.name.lower().endswith(allowed):
+                raise forms.ValidationError('Faqat PDF yoki rasm (jpg, png, webp) fayl yuklang!')
         return file
 
 

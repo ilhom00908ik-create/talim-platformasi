@@ -1,13 +1,13 @@
 from django.contrib.auth.views import LogoutView
 from django.urls import path
-from django.views.generic import RedirectView
+from django.views.generic.base import RedirectView
 
 from . import views
 
 app_name = 'online_urgat'
 
 urlpatterns = [
-    path('', RedirectView.as_view(url='apply/')),
+    path('', RedirectView.as_view(pattern_name='online_urgat:teacher_dashboard', permanent=False)),
 
     # Canonical hyphenated URLs
     path('apply/', views.teacher_register_view, name='teacher_register'),

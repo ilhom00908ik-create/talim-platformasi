@@ -13,18 +13,36 @@ from .forms import TeacherRegistrationForm, TestForm, TestQuestionForm
 from .models import Course, Enrollment, LiveLesson, TeacherApplication, TeacherCertificate, Test, TestAttempt, TestQuestion
 
 
+# O'qituvchi kabinetiga kirish uchun yagona haqiqat manbai.
+# Tasdiqlangan ariza (is_approved) bo'lishi yetarli. is_staff talab qilish
+# o'qituvchilarni kabinetdan butunlay mahrum qilib qo'yardi. Adminlar (superuser)
+# uchun ham ruxsat beriladi.
 def teacher_allowed(user):
-    return bool(user and user.is_authenticated and user.is_staff and TeacherApplication.objects.filter(user=user, is_approved=True).exists())
+    return bool(get_teacher_application(user))
+
+
+def get_teacher_application(user):
+    if not user or not user.is_authenticated:
+        return None
+
+    application = getattr(user, 'teacherapplication', None)
+    if application is not None:
+        return application
+
+    return TeacherApplication.objects.filter(user=user).first()
 
 
 def teacher_application_status(user):
     if not user or not user.is_authenticated:
         return 'guest'
-    application = TeacherApplication.objects.filter(user=user).first()
-    if application and application.is_approved and user.is_staff:
+
+    application = get_teacher_application(user)
+    if application and application.is_approved:
         return 'approved'
     if application:
         return 'pending'
+    if getattr(user, 'is_superuser', False):
+        return 'approved'
     return 'not_applied'
 
 
@@ -32,6 +50,9 @@ def teacher_application_status(user):
 def teacher_register_view(request):
     if teacher_allowed(request.user):
         return redirect('online_urgat:teacher_dashboard')
+
+    if TeacherApplication.objects.filter(user=request.user).exists():
+        return redirect('online_urgat:teacher_pending')
 
     if request.method == 'POST':
         form = TeacherRegistrationForm(request.POST, request.FILES)
@@ -41,6 +62,9 @@ def teacher_register_view(request):
             teacher_app.save()
 
             files = request.FILES.getlist('certificate_pdf')
+            certificate = form.cleaned_data.get('certificate_pdf')
+            if certificate and certificate not in files:
+                files.append(certificate)
             for file in files:
                 TeacherCertificate.objects.create(teacher=teacher_app, file=file)
 
@@ -56,11 +80,15 @@ def teacher_register_view(request):
 def teacher_dashboard_view(request):
     status = teacher_application_status(request.user)
 
-    if status != 'approved':
+    if status == 'pending':
         messages.warning(request, 'Arizangiz admin tomonidan tasdiqlanishi kerak.')
         return redirect('online_urgat:teacher_pending')
 
-    application = TeacherApplication.objects.filter(user=request.user).first()
+    if status != 'approved':
+        messages.info(request, 'O\'qituvchi kabineti uchun avval ariza topshiring.')
+        return redirect('online_urgat:teacher_register')
+
+    application = get_teacher_application(request.user)
     courses = Course.objects.filter(teacher=request.user).order_by('-created_at')
     tests = Test.objects.filter(teacher=request.user).order_by('-created_at')
     live_lessons = LiveLesson.objects.filter(teacher=request.user).order_by('-created_at')
@@ -105,21 +133,28 @@ def create_live_lesson(request):
 
 
 def login_view(request):
+    if request.user.is_authenticated:
+        return redirect(_landing_after_login(request.user))
+
     if request.method == 'POST':
         form = AuthenticationForm(request, data=request.POST)
         if form.is_valid():
             user = form.get_user()
-            status = teacher_application_status(user)
-            if status != 'approved':
-                login(request, user)
-                if status == 'pending':
-                    return redirect('online_urgat:teacher_pending')
-                return redirect('online_urgat:teacher_register')
             login(request, user)
-            return redirect('online_urgat:teacher_dashboard')
+            return redirect(_landing_after_login(user))
     else:
         form = AuthenticationForm()
     return render(request, 'online_urgat/login.html', {'form': form})
+
+
+def _landing_after_login(user):
+    """Foydalanuvchi rolini hisobga olib to'g'ri kabinetga yo'naltirish."""
+    status = teacher_application_status(user)
+    if status == 'approved':
+        return 'online_urgat:teacher_dashboard'
+    if status == 'pending':
+        return 'online_urgat:teacher_pending'
+    return 'online_urgat:teacher_register'
 
 
 def register_view(request):
@@ -209,27 +244,8 @@ def send_telegram_notification(teacher_app):
                 print(f"Sertifikatni yuborishda xatolik: {exc}")
 
 
-@login_required(login_url='/online-urgat/login/')
-def teacher_dashboard(request):
-    if not teacher_allowed(request.user):
-        return redirect('online_urgat:teacher_pending')
-
-    application = getattr(request.user, 'teacherapplication', None)
-    courses = Course.objects.filter(teacher=request.user)
-    tests = Test.objects.filter(teacher=request.user)
-    live_lessons = LiveLesson.objects.filter(teacher=request.user).order_by('-created_at')
-    attempts = TestAttempt.objects.filter(test__teacher=request.user).select_related('student', 'test').order_by('-submitted_at')
-
-    context = {
-        'application': application,
-        'courses': courses,
-        'tests': tests,
-        'live_lessons': live_lessons,
-        'attempts': attempts,
-        'test_form': TestForm(),
-        'question_form': TestQuestionForm(),
-    }
-    return render(request, 'online_urgat/teacher_dashboard.html', context)
+# Eski nom (compatibility). Kabinet mantiqi bitta joyda — teacher_dashboard_view.
+teacher_dashboard = teacher_dashboard_view
 
 
 @login_required(login_url='/online-urgat/login/')
@@ -317,7 +333,7 @@ def add_question_bulk_to_test(request, test_id):
     if request.method == 'POST':
         question_count = request.POST.get('question_count', '0')
         try:
-            count = max(1, int(question_count) if question_count else 1)
+            count = max(1, min(10, int(question_count) if question_count else 1))
         except ValueError:
             count = 1
 
@@ -373,21 +389,16 @@ def join_live_lesson(request, lesson_id):
         return redirect('online_urgat:teacher_dashboard')
 
     user = request.user
-    is_teacher = bool(user.is_authenticated and user == lesson.teacher)
+    is_teacher = bool(user.is_authenticated and user.pk == lesson.teacher_id)
 
     if not user.is_authenticated:
         messages.error(request, 'Jonli darsga kirish uchun tizimga kiring.')
         return redirect('online_urgat:login')
 
-    # Oddiy autentifikatsiya qilingan foydalanuvchi darsga qo'shila olishi kerak.
-    if not is_teacher:
-        allowed = True
-    else:
-        allowed = True
-
-    if not allowed:
+    # Oddiy autentifikatsiya qilingan foydalanuvchi darsga qo'shila oladi.
+    if not lesson.user_can_join(user):
         messages.error(request, 'Bu darsga qo\'shilish huquqi mavjud emas.')
-        return redirect('accounts:dashboard') if hasattr(request, 'user') else redirect('online_urgat:teacher_dashboard')
+        return redirect('home')
 
     if not is_teacher and not lesson.is_live:
         messages.info(request, 'Dars hali boshlanmagan. O‘qituvchi darsni boshlagach, darsxona ochiladi.')
@@ -509,7 +520,7 @@ def delete_test(request, test_id):
 
 @login_required(login_url='/online-urgat/login/')
 def teacher_pending_view(request):
-    application = TeacherApplication.objects.filter(user=request.user).first()
-    if application and application.is_approved and request.user.is_staff:
+    application = get_teacher_application(request.user)
+    if application and application.is_approved:
         return redirect('online_urgat:teacher_dashboard')
     return render(request, 'online_urgat/teacher_pending.html', {'application': application})

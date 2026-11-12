@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ lesson.title }} | Jonli dars</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2322d3ee'/%3E%3C/svg%3E">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root {
@@ -65,6 +66,36 @@
             object-fit: cover;
             display: block;
             background: #020817;
+            z-index: 1;
+        }
+
+        /* Ustoz ekran ulaganda ekran butun sahna bo'ylab katta ko'rinadi */
+        #screenVideo {
+            object-fit: contain;
+            background: #000;
+            z-index: 2;
+            display: none;
+        }
+
+        .stage.screen-active #screenVideo { display: block; }
+        .stage.screen-active #remoteVideo { display: none; }
+        .stage.screen-active .video-overlay { display: none; }
+        .stage.screen-active .participant-strip { top: auto; bottom: 0.5rem; }
+
+        .screen-badge {
+            position: absolute;
+            top: 0.85rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 35;
+            padding: 0.3rem 0.85rem;
+            border-radius: 9999px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #ecfeff;
+            background: rgba(8, 145, 178, 0.35);
+            border: 1px solid rgba(34, 211, 238, 0.45);
+            backdrop-filter: blur(8px);
         }
 
         .video-overlay {
@@ -72,6 +103,7 @@
             inset: 0;
             background: linear-gradient(to top, rgba(2,6,23,0.78), rgba(2,6,23,0.08));
             pointer-events: none;
+            z-index: 3;
         }
 
         .floating-window {
@@ -116,11 +148,12 @@
             right: 1rem;
             display: flex;
             gap: 0.75rem;
-            z-index: 20;
+            z-index: 25;
             max-height: 180px;
             overflow-x: auto;
             overflow-y: hidden;
             padding-bottom: 0.25rem;
+            pointer-events: auto;
         }
 
         .participant-strip::-webkit-scrollbar { height: 6px; }
@@ -208,6 +241,8 @@
         }
 
         .action-btn:hover { transform: translateY(-1px); }
+        .action-btn.active { border-color: rgba(251,113,133,0.6); background: rgba(244,63,94,0.2); }
+        .action-btn:disabled { cursor: default; transform: none; }
         .primary { background: linear-gradient(90deg, rgba(34,211,238,0.22), rgba(139,92,246,0.35)); }
         .danger { background: rgba(244,63,94,0.14); border-color: rgba(251,113,133,0.3); }
 
@@ -268,6 +303,8 @@
                     <div class="live-shell">
                         <div id="stageView" class="stage">
                             <video id="remoteVideo" class="main-video" autoplay playsinline></video>
+                            <video id="screenVideo" class="main-video" autoplay playsinline></video>
+                            <div id="screenShareBadge" class="screen-badge hidden">Ekran uzatilmoqda</div>
                             <div class="video-overlay"></div>
 
                             <div id="participantStrip" class="participant-strip" aria-label="Participant strip"></div>
@@ -286,16 +323,18 @@
                         <div class="control-group">
                             {% if is_teacher %}
                                 <button id="startCallBtn" type="button" class="action-btn primary">Darsni yoqish</button>
-                                <button id="muteAllBtn" type="button" class="action-btn">Barchasini o'chirish</button>
+                                <button id="muteAllBtn" type="button" class="action-btn" data-muted="0">Barchasini o'chirish</button>
                             {% endif %}
-                            <button id="leaveRoomBtn" type="button" class="action-btn danger">Darsdan chiqish</button>
-                            <button id="shareScreenBtn" type="button" class="action-btn">Ekranni uzatish</button>
+                            {% if is_teacher %}
+                                <button id="shareScreenBtn" type="button" class="action-btn">Ekranni uzatish</button>
+                            {% endif %}
                             <button id="toggleMicBtn" type="button" class="action-btn">Mikrofonni yoqish / o'chirish</button>
+                            <button id="toggleParticipantsBtn" type="button" class="action-btn">Qatnashchilar paneli</button>
+                            <button id="toggleFullscreenBtn" type="button" class="action-btn">To'liq ekran</button>
                         </div>
 
                         <div class="control-group">
-                            <button id="toggleParticipantsBtn" type="button" class="action-btn">Qatnashchilar paneli</button>
-                            <button id="toggleFullscreenBtn" type="button" class="action-btn">To'liq ekran</button>
+                            <button id="leaveRoomBtn" type="button" class="action-btn danger">Darsdan chiqish</button>
                         </div>
                     </div>
                 </div>
@@ -336,6 +375,8 @@
     const remoteVideo = document.getElementById('remoteVideo');
     const participantList = document.getElementById('participantList');
     const participantStrip = document.getElementById('participantStrip');
+    const screenVideo = document.getElementById('screenVideo');
+    const screenShareBadge = document.getElementById('screenShareBadge');
     const participantCount = document.getElementById('participantCount');
     const leaveRoomBtn = document.getElementById('leaveRoomBtn');
     const startCallBtn = document.getElementById('startCallBtn');
@@ -347,10 +388,18 @@
     const micIndicator = document.getElementById('micIndicator');
     const rtcDebugPanel = document.getElementById('rtcDebugPanel');
 
-    const lessonId = {{ lesson.id }};
-    const username = '{{ request.user.get_full_name|default:request.user.username|escapejs }}';
-    const userRole = '{{ is_teacher|yesno:"teacher,student" }}';
-    const userId = Number('{{ request.user.id }}');
+    const lessonId = {{ lesson.id|default:0 }};
+    const username = '{{ request.user.get_full_name|escapejs|default:request.user.username|escapejs }}';
+    let userRole = '{{ is_teacher|yesno:"teacher,student"|default:"student" }}'.trim() || 'student';
+    // Host huquqi har doim dars egasi bo'yicha aniqlanadi (rol satri ishonchsiz bo'lsa ham)
+    const userId = Number('{{ request.user.id|default:0 }}');
+    const lessonTeacherId = Number('{{ lesson.teacher_id|default:0 }}');
+    if (userId && userId === lessonTeacherId) {
+        userRole = 'teacher';
+    }
+    let teacherId = lessonTeacherId || null;
+    const dashboardUrl = "{% url 'online_urgat:teacher_dashboard' %}";
+    const homeUrl = "{% url 'home' %}";
     const roomName = `live_lesson_${lessonId}`;
     const rtcConfig = {
         iceServers: [
@@ -358,9 +407,21 @@
             { urls: 'stun:stun1.l.google.com:19302' },
             { urls: 'stun:stun2.l.google.com:19302' },
             { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' }
+            { urls: 'stun:stun4.l.google.com:19302' },
+            {
+                urls: [
+                    'turn:relay.metered.ca:80',
+                    'turn:relay.metered.ca:443',
+                    'turn:relay.metered.ca:80?transport=tcp',
+                    'turn:relay.metered.ca:443?transport=tcp'
+                ],
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+            }
         ],
-        iceCandidatePoolSize: 0
+        iceCandidatePoolSize: 0,
+        iceTransportPolicy: 'all',
+        bundlePolicy: 'max-bundle'
     };
 
     function setDebugStatus(message) {
@@ -389,15 +450,53 @@
     const peers = new Map();
     const peerNegotiation = new Set();
     const remoteStreams = new Map();
-    const screenTrackRefs = new Set();
     let localStream = null;
     let screenStream = null;
     let mediaEnabled = true;
     let participantsVisible = true;
-    let teacherId = null;
     let screenOwnerId = null;
     let screenSharingActive = false;
     let roomReady = false;
+    let isTeacherMutedByHost = false;
+
+    // Zoom uslubi: ustozning kamerasida faqat shaxsiy video/ovoz,
+    // ekran ulashilganda esa ekran track'i — shu sabab ular alohida teglarda ko'rsatiladi.
+    function findTrackByKind(stream, kind) {
+        if (!stream) return null;
+        return stream.getTracks().find((track) => track.kind === kind) || null;
+    }
+
+    function applyLocalAudioState() {
+        if (!localStream) return;
+        const audioTrack = findTrackByKind(localStream, 'audio');
+        if (!audioTrack) return;
+        // Host tomonidan o'chirilgan bo'lsa, foydalanuvchi o'zi yoqib yubora olmaydi.
+        audioTrack.enabled = mediaEnabled && !isTeacherMutedByHost;
+    }
+
+    // Ustozning katta oynasi — bu remoteVideo; ekran ulashimayotganda u ko'rinadi.
+    function setTeacherVideoEnabled(enabled) {
+        if (!remoteVideo) return;
+        remoteVideo.style.display = enabled ? 'block' : 'none';
+    }
+
+    function setScreenShareView(ownerId) {
+        // state: screenOwnerId o'zgarishi bilan markaziy kompozitsiya almashadi
+        screenOwnerId = ownerId == null ? null : Number(ownerId);
+        screenSharingActive = screenOwnerId != null;
+
+        const root = document.getElementById('stageView');
+        if (root) root.classList.toggle('screen-active', screenSharingActive);
+
+        if (screenShareBadge) {
+            screenShareBadge.classList.toggle('hidden', !screenSharingActive);
+            if (screenSharingActive) {
+                const owner = participants.get(screenOwnerId);
+                screenShareBadge.textContent = owner ? `${owner.name} ekranni uzatmoqda` : 'Ekran uzatilmoqda';
+            }
+        }
+        updateMainDisplay();
+    }
 
     function setLocalVideoSource(stream) {
         if (!localVideo) return;
@@ -459,18 +558,19 @@
             if (video) attachStreamToVideo(video, stream);
         }
 
-        if (remoteUserId === teacherId || userRole === 'student') {
-            updateMainDisplay();
-        }
+        updateMainDisplay();
     }
 
     function attachStreamToVideo(videoEl, stream) {
-        if (!videoEl || !stream) return;
-        videoEl.srcObject = stream;
+        if (!videoEl) return;
+        if (videoEl.srcObject !== stream) {
+            videoEl.srcObject = stream;
+        }
         videoEl.autoplay = true;
         videoEl.playsInline = true;
-        videoEl.muted = false;
-        videoEl.play().catch(() => {});
+        if (stream) {
+            videoEl.play().catch(() => {});
+        }
     }
 
     function getMainStreamForUser(peerId) {
@@ -478,48 +578,63 @@
         if (!participant || !participant.stream) return null;
 
         if (screenSharingActive && screenOwnerId === peerId) {
-            const screenTrack = participant.stream.getVideoTracks().find((track) => /(screen|window|display|tab)/i.test(track.label || ''));
-            if (screenTrack) {
-                return new MediaStream([screenTrack]);
-            }
+            const screenTrack = participant.stream.getVideoTracks().find((track) => /(screen|window|display|tab|monitor)/i.test(track.label || ''));
+            if (screenTrack) return screenTrack;
         }
 
-        const firstVideoTrack = participant.stream.getVideoTracks()[0];
-        if (firstVideoTrack) {
-            return new MediaStream([firstVideoTrack]);
-        }
-
-        return null;
+        return participant.stream.getVideoTracks()[0] || null;
     }
 
-    function setMainVideo(stream) {
+    // Asosiy (katta) ko'rinish:
+    // 1) Ekran uzatilsa — ekran butun sahnani egallaydi (barcha qatnashchilarda bir xil).
+    // 2) Ekran yo'q bo'lsa — o'qituvchi markazda, qatnashchilar strip'da.
+    function setMainVideo(track) {
         if (!remoteVideo) return;
-        remoteVideo.srcObject = stream || null;
-        remoteVideo.autoplay = true;
-        remoteVideo.playsInline = true;
+        if (!track || track.readyState === 'ended') {
+            if (remoteVideo.srcObject) remoteVideo.srcObject = null;
+            return;
+        }
+        const current = remoteVideo.srcObject;
+        if (current && current.getVideoTracks && current.getVideoTracks()[0] === track) {
+            remoteVideo.play().catch(() => {});
+            return;
+        }
+        attachStreamToVideo(remoteVideo, new MediaStream([track]));
         remoteVideo.muted = false;
-        if (stream) remoteVideo.play().catch(() => {});
     }
 
     function updateMainDisplay() {
-        if (screenSharingActive && screenOwnerId != null) {
-            const owner = participants.get(screenOwnerId);
-            if (owner && owner.stream) {
-                const screenTrack = owner.stream.getVideoTracks().find((track) => /(screen|window|display|tab)/i.test(track.label || ''));
-                if (screenTrack) {
-                    setMainVideo(new MediaStream([screenTrack]));
-                    return;
-                }
-            }
-        }
+        const root = document.getElementById('stageView');
+        if (root) root.classList.toggle('screen-active', !!screenSharingActive);
 
-        const preferredId = userRole === 'student' ? teacherId : [...participants.keys()].find((id) => id !== userId && id !== screenOwnerId);
-        if (preferredId != null) {
-            const stream = getMainStreamForUser(preferredId);
-            if (stream) {
-                setMainVideo(stream);
+        if (screenSharingActive && screenOwnerId != null) {
+            const screenTrack = getMainStreamForUser(screenOwnerId);
+            if (screenTrack) {
+                if (screenVideo) {
+                    attachStreamToVideo(screenVideo, new MediaStream([screenTrack]));
+                    screenVideo.muted = false;
+                    screenVideo.play().catch(() => {});
+                }
+                setTeacherVideoEnabled(false);
                 return;
             }
+            // Ekran track'i hali yetib kelmagan — pastda odatiy rejim ko'rsatiladi
+        }
+
+        if (screenVideo) {
+            screenVideo.srcObject = null;
+        }
+
+        // Ekran uzatish tugaganda — odatiy rejimga qaytish: ustoz video yana markazda
+        setTeacherVideoEnabled(true);
+        const stream = teacherId != null ? getMainStreamForUser(teacherId) : null;
+        if (stream) {
+            setMainVideo(stream);
+            if (teacherId === userId && localStream) {
+                // Ustoz o'z kamerasini katta oynada ko'rmasligi kerak — o'zi oynada qoladi
+                localVideo.style.display = 'block';
+            }
+            return;
         }
 
         setMainVideo(null);
@@ -529,7 +644,14 @@
         const entry = document.createElement('div');
         entry.className = 'rounded-xl border border-white/10 bg-white/5 px-3 py-2';
         const label = sender === username ? 'Siz' : sender;
-        entry.innerHTML = `<div class="mb-1 text-[10px] uppercase tracking-[0.2em] text-cyan-200">${label}</div><div class="text-slate-100">${message}</div>`;
+        const labelEl = document.createElement('div');
+        labelEl.className = 'mb-1 text-[10px] uppercase tracking-[0.2em] text-cyan-200';
+        labelEl.textContent = label;
+        const bodyEl = document.createElement('div');
+        bodyEl.className = 'text-slate-100 break-words';
+        bodyEl.textContent = message == null ? '' : String(message);
+        entry.appendChild(labelEl);
+        entry.appendChild(bodyEl);
         chatMessages.appendChild(entry);
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
@@ -607,7 +729,13 @@
 
             const meta = document.createElement('div');
             meta.className = 'participant-meta';
-            meta.innerHTML = `<span class="participant-badge"></span>${participant.name}`;
+            const dot = document.createElement('span');
+            dot.className = 'participant-badge';
+            if (participant.micMuted) dot.style.background = '#fb7185';
+            const nameEl = document.createElement('span');
+            nameEl.textContent = participant.name;
+            meta.appendChild(dot);
+            meta.appendChild(nameEl);
 
             tile.appendChild(video);
             tile.appendChild(meta);
@@ -640,8 +768,8 @@
             if (peerNegotiation.has(remoteUserId)) return;
             peerNegotiation.add(remoteUserId);
             try {
-                if (pc.signalingState !== 'stable') return;
-                const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+                if (pc.signalingState !== 'stable' || !socket || socket.readyState !== WebSocket.OPEN) return;
+                const offer = await pc.createOffer();
                 await pc.setLocalDescription(offer);
                 debugLog('webrtc-offer-sent', { remoteUserId, offerType: offer.type });
                 socket.send(JSON.stringify({
@@ -667,7 +795,18 @@
                 stream.addTrack(incomingTrack);
             }
 
-            mergeRemoteTrack(remoteUserId, incomingTrack);
+            if (!incomingTrack.__liveMerged) {
+                incomingTrack.__liveMerged = true;
+                mergeRemoteTrack(remoteUserId, incomingTrack);
+            }
+            incomingTrack.onunmute = () => updateMainDisplay();
+            incomingTrack.onended = () => {
+                const remoteStream = remoteStreams.get(remoteUserId);
+                if (remoteStream) remoteStream.removeTrack(incomingTrack);
+                debugLog('remote-track-ended', { remoteUserId, kind: incomingTrack.kind });
+                renderParticipantStrip();
+                updateMainDisplay();
+            };
             debugLog('remote-track', {
                 remoteUserId,
                 kind: incomingTrack.kind,
@@ -729,8 +868,12 @@
             addLocalTracksToPeer(remoteUserId);
 
             debugLog('webrtc-offer-received', { remoteUserId, offerType: payload.offer.type });
+            // Glare (bir vaqtda ikkala tomon offer yuborishi) holatini to'g'ri hal qilish
+            if (pc.signalingState !== 'stable') {
+                await pc.setLocalDescription({ type: 'rollback' }).catch(() => {});
+            }
             await safeSetRemoteDescription(pc, new RTCSessionDescription(payload.offer));
-            const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+            const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             debugLog('webrtc-answer-sent', { remoteUserId, answerType: answer.type });
 
@@ -791,14 +934,16 @@
 
             setLocalVideoSource(localStream);
 
-            micIndicator.textContent = mediaEnabled ? 'Mic on' : 'Mic off';
+            applyLocalAudioState();
+            updateMicButtonState();
 
             participants.set(userId, {
                 id: userId,
                 name: username,
                 role: userRole,
                 stream: localStream,
-                isActive: true
+                isActive: true,
+                micMuted: !mediaEnabled,
             });
 
             updateParticipantList();
@@ -806,7 +951,9 @@
             updateMainDisplay();
 
             for (const [remoteUserId, pc] of peers.entries()) {
-                addLocalTracksToPeer(remoteUserId);
+                if (pc && pc.connectionState !== 'closed') {
+                    addLocalTracksToPeer(remoteUserId);
+                }
             }
 
             await connectToAllPeers();
@@ -817,11 +964,14 @@
     }
 
     async function connectToAllPeers() {
-        if (!localStream || !roomReady) return;
+        if (!localStream || !roomReady || !socket || socket.readyState !== WebSocket.OPEN) return;
 
-        for (const participant of participants.values()) {
+        for (const participant of [...participants.values()]) {
             if (!participant || participant.id == null || participant.id === userId) continue;
-            if (peers.has(participant.id)) continue;
+            if (peers.has(participant.id)) {
+                addLocalTracksToPeer(participant.id);
+                continue;
+            }
             await startPeerWithUser(participant.id);
         }
     }
@@ -831,7 +981,8 @@
 
         peerNegotiation.add(remoteUserId);
         try {
-            if (!localStream) await startLocalMedia();
+            if (!localStream || !localStream.getTracks().length) await startLocalMedia();
+            if (!socket || socket.readyState !== WebSocket.OPEN) return;
             const pc = ensurePeerConnection(remoteUserId);
             addLocalTracksToPeer(remoteUserId);
 
@@ -856,133 +1007,479 @@
         }
     }
 
+    // Bitta nuqtadan barcha media track'larni qo'shish: ovoz+video+ekran oqimlari uzluksiz
+    // ketsin. Takroriy renegotiation boshlanmasligi uchun addTrack mavjud bo'lsa o'tkazib yuboriladi.
+    const negotiationLock = new WeakMap();
+
     function addLocalTracksToPeer(remoteUserId) {
         const pc = ensurePeerConnection(remoteUserId);
-        const streamPool = [];
+        const streams = [];
 
-        if (localStream) streamPool.push(localStream);
-        if (screenStream && userId === screenOwnerId) streamPool.push(screenStream);
+        if (localStream) streams.push(localStream);
+        if (screenStream && userId === screenOwnerId) streams.push(screenStream);
 
-        streamPool.forEach((stream) => {
+        let added = false;
+        streams.forEach((stream) => {
             stream.getTracks().forEach((track) => {
-                const alreadyAdded = pc.getSenders().some((sender) => sender.track === track);
+                const alreadyAdded = pc.getSenders().some((sender) => sender && sender.track === track);
                 if (!alreadyAdded) {
-                    pc.addTrack(track, stream);
+                    try {
+                        pc.addTrack(track, stream);
+                        added = true;
+                    } catch (error) {
+                        console.warn('addTrack failed', error);
+                    }
                 }
             });
         });
 
-        if (pc.signalingState === 'stable') {
-            pc.dispatchEvent(new Event('negotiationneeded'));
+        // Brauzer o'zi negotiationneeded hodisasini yuboradi; qo'lda faqat yangi track
+        // qo'shilmagan va offer hali yuborilmagan holatlar uchun tekshirib qo'yamiz.
+        if (added && !negotiationLock.get(pc) && pc.signalingState === 'stable' && socket && socket.readyState === WebSocket.OPEN) {
+            negotiationLock.set(pc, true);
+            setTimeout(() => { negotiationLock.set(pc, false); }, 800);
         }
     }
 
-    socket.onopen = async () => {
-        roomReady = true;
-        setDebugStatus('Socket ochildi: WebSocket tayyor');
-        addChatEntry('Darsxona ulanishi muvaffaqiyatli ochildi.', 'System');
-        liveStatus.textContent = userRole === 'teacher' ? 'Jonli dars faol' : 'Ulangan';
-        await startLocalMedia();
-    };
+    function updateMicButtonState() {
+        if (!localStream) return;
+        const audioTrack = findTrackByKind(localStream, 'audio');
+        const micOn = !!(audioTrack && audioTrack.enabled);
+        micIndicator.textContent = micOn ? 'Mic on' : 'Mic off';
+        toggleMicBtn.textContent = micOn ? 'Mikrofonni o\'chirish' : 'Mikrofonni yoqish';
+    }
 
-    socket.onmessage = async (event) => {
+    function sendSignal(type, extra = {}) {
+        if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+        socket.send(JSON.stringify(Object.assign({
+            type,
+            room: roomName,
+            sender: username,
+            sender_id: userId,
+            role: userRole,
+        }, extra)));
+        return true;
+    }
+
+    function sendMuteCommand(type, targetUserId = null) {
+        sendSignal(type, { target_user_id: targetUserId });
+    }
+
+    // Host "mute_all"/"mute_user" yuborganda ham, qatnashchining o'z tugmasi ham shu funksiyadan foydalanadi.
+    function applyMuteState(type, targetUserId = null) {
+        const shouldMute = type === 'mute_all' || type === 'mute_user';
+        mediaEnabled = !shouldMute;
+        if (shouldMute) {
+            // Host o'chirgan mikrofonni foydalanuvchi o'zi yoqib yubora olmaydi
+            isTeacherMutedByHost = userRole !== 'teacher' && (targetUserId === null || Number(targetUserId) === userId);
+        } else {
+            isTeacherMutedByHost = false;
+        }
+        applyLocalAudioState();
+        updateMicButtonState();
+    }
+
+    function stopScreenShareTracks({ notify = true } = {}) {
+        if (screenStream) {
+            screenStream.getTracks().forEach((track) => {
+                track.onended = null;
+                track.stop();
+            });
+        }
+        screenStream = null;
+
+        // Ustoz ekran track'ini peer ulanishlaridan ham olib tashlaymiz
+        for (const pc of peers.values()) {
+            if (!pc || pc.signalingState === 'closed') continue;
+            pc.getSenders().forEach((sender) => {
+                if (sender.track && sender.track.kind === 'video' && sender.track !== findTrackByKind(localStream, 'video')) {
+                    try { pc.removeTrack(sender); } catch (error) { console.warn('removeTrack failed', error); }
+                }
+            });
+        }
+
+        setScreenShareView(null);
+        if (notify) {
+            sendSignal('screen-share-stop', { screen_owner_id: userId });
+        }
+        updateMainDisplay();
+    }
+
+    async function shareScreen() {
+        // Ekran allaqachon uzatilmoqda bo'lsa — tugma to'xtatish vazifasini bajaradi (Zoom kabi)
+        if (screenStream) {
+            stopScreenShareTracks();
+            return;
+        }
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+            addChatEntry('Brauzeringiz ekranni uzatishni qo\'llab-quvvatlamaydi.', 'System');
+            return;
+        }
+
+        try {
+            const displayStream = await navigator.mediaDevices.getDisplayMedia({
+                video: { frameRate: { ideal: 30, max: 30 } },
+                audio: false,
+            });
+
+            const screenTrack = displayStream.getVideoTracks()[0];
+            if (!screenTrack) throw new Error('Ekran track olinmadi');
+
+            screenStream = displayStream;
+            const ownerId = userId;
+
+            // Brauzerning "Ekran uzatishni to'xtatish" tugmasi
+            screenTrack.onended = () => {
+                if (!screenStream) return;
+                stopScreenShareTracks();
+            };
+
+            setScreenShareView(ownerId);
+            sendSignal('screen-share-start', { screen_owner_id: ownerId });
+
+            // Ekran track'ini hamma peer ulanishga qo'shamiz (addTrack — negotiationneeded orqali
+            // renegotiation avtomatik boshlanadi, shunda ekran darhol hammaga boradi)
+            for (const [remoteUserId, pc] of peers.entries()) {
+                if (!pc || pc.signalingState === 'closed') continue;
+                const screenSender = pc.getSenders().find((s) => s.track && s.track === screenTrack);
+                if (screenSender) continue;
+                addLocalTracksToPeer(remoteUserId);
+            }
+
+            updateScreenButtonState();
+            updateMainDisplay();
+            addChatEntry('Ekran uzatish boshlandi.', 'System');
+        } catch (error) {
+            console.error('Screen share failed:', error);
+            stopScreenShareTracks({ notify: false });
+            addChatEntry('Ekran uzatish bekor qilindi.', 'System');
+        }
+    }
+
+    function updateScreenButtonState() {
+        if (shareScreenBtn) {
+            shareScreenBtn.textContent = screenStream ? 'Ekran uzatishni to\'xtatish' : 'Ekranni uzatish';
+            shareScreenBtn.classList.toggle('active', !!screenStream);
+        }
+    }
+
+    // Host "mute all" tugmasining matni har doim joriy holatga mos bo'lsin
+    function updateMuteAllButtonState() {
+        if (!muteAllBtn) return;
+        const isMuted = muteAllBtn.dataset.muted === '1';
+        muteAllBtn.textContent = isMuted ? 'Barchasini yoqish' : 'Barchasini o\'chirish';
+        muteAllBtn.classList.toggle('active', isMuted);
+    }
+
+    async function toggleMic() {
+        if (!localStream) {
+            await startLocalMedia();
+            if (!localStream) return;
+        }
+
+        const audioTrack = findTrackByKind(localStream, 'audio');
+        if (!audioTrack) {
+            addChatEntry('Mikrofon topilmadi. Brauzer ruxsatini tekshiring.', 'System');
+            return;
+        }
+
+        const willMute = audioTrack.enabled;
+        if (!willMute && isTeacherMutedByHost) {
+            addChatEntry('Ustoz mikrofonni o\'chirgan. Uni faqat ustoz yoqadi.', 'System');
+            return;
+        }
+
+        mediaEnabled = !willMute;
+        applyLocalAudioState();
+        updateMicButtonState();
+        // Boshqa qatnashchilarga holatni ko'rsatish uchun
+        sendSignal('mic-state', { muted: willMute });
+    }
+
+    function sendChatMessage() {
+        const message = chatInput.value.trim();
+        if (!message) return;
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+            addChatEntry('Ulanish hali tayyor emas, biroz kuting.', 'System');
+            return;
+        }
+
+        sendSignal('chat-message', { message });
+        addChatEntry(message, username);
+        chatInput.value = '';
+    }
+
+    function bindLiveRoomEvents() {
+        if (startCallBtn) {
+            startCallBtn.addEventListener('click', async () => {
+                setDebugStatus('Dars boshlanmoqda...');
+                await startLocalMedia();
+                await connectToAllPeers();
+                sendSignal('presence', { message: `${username} darsni boshladi.` });
+                startCallBtn.textContent = 'Dars yoqilgan';
+                startCallBtn.disabled = true;
+                startCallBtn.classList.add('opacity-60');
+            });
+        }
+
+        if (toggleMicBtn) {
+            toggleMicBtn.addEventListener('click', toggleMic);
+        }
+
+        if (shareScreenBtn) {
+            shareScreenBtn.addEventListener('click', shareScreen);
+        }
+
+        if (muteAllBtn) {
+            // Holat faqat server qabul qilgandan keyin o'zgaradi (pastdagi mute_all handler)
+            muteAllBtn.addEventListener('click', () => {
+                const isMuted = muteAllBtn.dataset.muted === '1';
+                if (!sendMuteCommand(isMuted ? 'unmute_all' : 'mute_all')) {
+                    addChatEntry('Ulanish hali tayyor emas, biroz kuting.', 'System');
+                }
+            });
+        }
+
+        if (sendChatBtn) {
+            sendChatBtn.addEventListener('click', sendChatMessage);
+        }
+
+        if (chatInput) {
+            chatInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    sendChatMessage();
+                }
+            });
+        }
+
+        if (copyBtn) {
+            copyBtn.addEventListener('click', async () => {
+                const currentUrl = window.location.href;
+                try {
+                    await navigator.clipboard.writeText(currentUrl);
+                    addChatEntry('Dars linki nusxalandi.', 'System');
+                } catch (error) {
+                    console.warn('Clipboard copy failed', error);
+                }
+            });
+        }
+
+        if (leaveRoomBtn) {
+            leaveRoomBtn.addEventListener('click', () => {
+                if (screenStream) stopScreenShareTracks();
+                if (localStream) localStream.getTracks().forEach((track) => track.stop());
+                if (socket && socket.readyState === WebSocket.OPEN) socket.close();
+                window.location.href = userRole === 'teacher' ? dashboardUrl : homeUrl;
+            });
+        }
+
+        if (toggleParticipantsBtn) {
+            toggleParticipantsBtn.addEventListener('click', () => {
+                participantsVisible = !participantsVisible;
+                if (!participantsVisible && screenSharingActive) {
+                    // Ekran ko'rinishi buzilmasligi uchun stripni yashiramiz, sahna kamaymaydi
+                    participantStrip.style.display = 'none';
+                }
+                renderParticipantStrip();
+                toggleParticipantsBtn.textContent = participantsVisible ? 'Qatnashchilar paneli' : 'Qatnashchilarni ko\'rsat';
+            });
+        }
+
+        if (toggleFullscreenBtn) {
+            toggleFullscreenBtn.addEventListener('click', async () => {
+                const stage = document.getElementById('stageView');
+                const target = stage || document.documentElement;
+                try {
+                    if (!document.fullscreenElement) {
+                        await target.requestFullscreen();
+                    } else {
+                        await document.exitFullscreen();
+                    }
+                } catch (error) {
+                    console.warn('Fullscreen failed', error);
+                }
+            });
+        }
+    }
+
+    bindLiveRoomEvents();
+    updateScreenButtonState();
+    updateMuteAllButtonState();
+
+    socket.addEventListener('open', async () => {
+        roomReady = true;
+        debugLog('socket-open', { url: socketUrl, role: userRole });
+        setDebugStatus('RTC websocket tayyor');
+        try {
+            await startLocalMedia();
+            await connectToAllPeers();
+        } catch (error) {
+            console.warn('Auto-start media failed:', error);
+        }
+    });
+
+    socket.addEventListener('close', () => {
+        roomReady = false;
+        debugLog('socket-close', { url: socketUrl });
+        setDebugStatus('RTC websocket yopildi');
+    });
+
+    socket.addEventListener('error', (event) => {
+        debugLog('socket-error', event);
+        setDebugStatus('RTC websocket xatosi');
+    });
+
+    socket.addEventListener('message', async (event) => {
         try {
             const payload = JSON.parse(event.data);
+            if (!payload || !payload.type) return;
+
+            debugLog('socket-message', { type: payload.type, sender_id: payload.sender_id, target_user_id: payload.target_user_id });
 
             if (payload.type === 'session_state') {
-                teacherId = Number(payload.teacher_id || teacherId);
-                setDebugStatus(`Session ready: teacher=${teacherId || 'unknown'} role=${payload.role}`);
+                if (payload.teacher_id != null) teacherId = Number(payload.teacher_id);
+                if (payload.user_id === userId) {
+                    userRole = payload.role || userRole;
+                }
+                const participant = participants.get(payload.user_id) || {
+                    id: payload.user_id,
+                    name: payload.user_name || 'User',
+                    role: payload.role || 'student',
+                    stream: null,
+                    isActive: true,
+                };
+                participant.name = payload.user_name || participant.name;
+                participant.role = payload.role || participant.role;
+                participants.set(payload.user_id, participant);
+                // session_state faqat o'zimiz haqimizda: undan keyin hamma bilan ulanish
+                updateParticipantList();
+                renderParticipantStrip();
+                if (localStream && roomReady) {
+                    await connectToAllPeers();
+                }
+                updateMainDisplay();
                 return;
             }
 
             if (payload.type === 'presence') {
-                const participant = {
-                    id: Number(payload.sender_id),
-                    name: payload.sender || 'Participant',
-                    role: payload.role || 'student',
-                    stream: null,
-                    isActive: true
-                };
-
-                if (participant.id && participant.id !== userId) {
-                    participants.set(participant.id, participant);
-                    if ((userRole === 'teacher' && payload.role !== 'teacher') || (userRole === 'student' && payload.role === 'teacher')) {
-                        await connectToAllPeers();
+                if (payload.left) {
+                    participants.delete(payload.sender_id);
+                    remoteStreams.delete(payload.sender_id);
+                    const deadPeer = peers.get(payload.sender_id);
+                    if (deadPeer) {
+                        deadPeer.onicecandidate = null;
+                        deadPeer.onnegotiationneeded = null;
+                        deadPeer.ontrack = null;
+                        try { deadPeer.close(); } catch (error) { /* ignore */ }
+                        peers.delete(payload.sender_id);
+                    }
+                    updateParticipantList();
+                    renderParticipantStrip();
+                    updateMainDisplay();
+                } else {
+                    const participant = participants.get(payload.sender_id) || {
+                        id: payload.sender_id,
+                        name: payload.sender || 'User',
+                        role: payload.role || 'student',
+                        stream: null,
+                        isActive: true,
+                    };
+                    participant.name = payload.sender || participant.name;
+                    participant.role = payload.role || participant.role;
+                    participant.isActive = true;
+                    participants.set(payload.sender_id, participant);
+                    updateParticipantList();
+                    renderParticipantStrip();
+                    if (payload.sender_id !== userId && payload.sender_id != null) {
+                        startPeerWithUser(payload.sender_id);
                     }
                 }
-
-                updateParticipantList();
-                renderParticipantStrip();
-                updateMainDisplay();
-                addChatEntry(payload.message, payload.sender || 'System');
-                return;
-            }
-
-            if (payload.type === 'chat-message' && payload.sender !== username) {
-                addChatEntry(payload.message, payload.sender || 'O\'quvchi');
-                return;
-            }
-
-            if (payload.type === 'mute_all') {
-                applyMuteState('mute_all');
-                setDebugStatus('Mute all command received');
-                return;
-            }
-
-            if (payload.type === 'mute_user') {
-                if (Number(payload.target_user_id) === userId) {
-                    applyMuteState('mute_user', userId);
+                if (payload.message) {
+                    addChatEntry(payload.message, payload.sender || 'System');
                 }
-                setDebugStatus(`Mute user target=${payload.target_user_id}`);
                 return;
             }
 
-            if (payload.type === 'unmute_user') {
-                if (Number(payload.target_user_id) === userId) {
-                    if (localStream) {
-                        localStream.getAudioTracks().forEach((track) => {
-                            track.enabled = true;
-                        });
+            if (payload.type === 'chat-message') {
+                if (payload.sender_id !== userId) {
+                    addChatEntry(payload.message || '', payload.sender || 'Urinuvchi');
+                }
+                return;
+            }
+
+            if (['mute_all', 'unmute_all', 'mute_user', 'unmute_user'].includes(payload.type)) {
+                const targetId = payload.target_user_id == null ? null : Number(payload.target_user_id);
+                const targetsEveryone = payload.type.endsWith('_all');
+                const targetIsMe = targetId !== null && targetId === userId;
+                if (payload.type === 'mute_all' || payload.type === 'unmute_all') {
+                    // Host o'zining mikrofonini "mute all" bilan o'chirmaydi
+                    if (userRole !== 'teacher') applyMuteState(payload.type, userId);
+                } else if (targetIsMe) {
+                    applyMuteState(payload.type, userId);
+                } else if (targetId !== null) {
+                    const target = participants.get(targetId);
+                    if (target) {
+                        target.micMuted = payload.type === 'mute_user';
+                        updateParticipantList();
                     }
-                    micIndicator.textContent = 'Mic on';
-                    toggleMicBtn.textContent = 'Mikrofonni o\'chirish';
-                    mediaEnabled = true;
                 }
-                setDebugStatus(`Unmute user target=${payload.target_user_id}`);
+                if (payload.message) {
+                    addChatEntry(payload.message, payload.sender || 'Teacher');
+                }
+                return;
+            }
+
+            if (payload.type === 'mic-state') {
+                const speaker = participants.get(payload.sender_id);
+                if (speaker) {
+                    speaker.micMuted = !!payload.muted;
+                    updateParticipantList();
+                }
                 return;
             }
 
             if (payload.type === 'screen-share-start') {
-                syncScreenShareState(true, payload.screen_owner_id ?? payload.sender_id);
-                setDebugStatus(`Screen share active: owner=${payload.screen_owner_id ?? payload.sender_id}`);
+                const ownerId = Number(payload.screen_owner_id ?? payload.sender_id);
+                if (!Number.isNaN(ownerId)) {
+                    if (ownerId !== userId) {
+                        setScreenShareView(ownerId);
+                    }
+                    addChatEntry(`${payload.sender || 'Foydalanuvchi'} ekran uzatishni boshladi.`, 'System');
+                }
                 return;
             }
 
             if (payload.type === 'screen-share-stop') {
-                syncScreenShareState(false, null);
-                setDebugStatus('Screen share stopped');
+                const ownerId = payload.screen_owner_id == null ? null : Number(payload.screen_owner_id);
+                // Faqat hozir uzatayotgan foydalanuvchining tugatishi qabul qilinadi
+                if (ownerId === null || screenOwnerId === ownerId) {
+                    setScreenShareView(null);
+                    addChatEntry(`${payload.sender || 'Foydalanuvchi'} ekran uzatishni to'xtatdi.`, 'System');
+                }
                 return;
             }
 
-            if (payload.type && payload.type.startsWith('webrtc-')) {
-                setDebugStatus(`Signal received: ${payload.type} from ${payload.sender_id}`);
+            if (['webrtc-offer', 'webrtc-answer', 'webrtc-candidate'].includes(payload.type)) {
                 await handleRemoteSignal(payload);
+                return;
             }
         } catch (error) {
-            console.error('Socket data parsing error:', error);
+            console.error('Socket payload failed:', error);
         }
-    };
+    });
 
-    socket.onerror = (event) => {
-        console.error('WebSocket error:', event);
-        setDebugStatus('WebSocket xatosi: ulanganda qiyinchilik bor');
-        liveStatus.textContent = 'Ulanish uzildi';
-    };
+    if (socket.readyState === WebSocket.OPEN) {
+        roomReady = true;
+    }
 
-    socket.onclose = () => {
-        setDebugStatus('Socket yopildi: ulanganlik uzildi');
-        liveStatus.textContent = 'Ulanish uzildi';
-    };
+    // Video/ovozni birinchi marta bosishda "unblock" qilib qo'yish (Chrome autoplay siyosati)
+    document.addEventListener('click', () => {
+        [remoteVideo, screenVideo, localVideo].forEach((el) => {
+            if (el && el.srcObject && el.paused) el.play().catch(() => {});
+        });
+    }, { once: true });
 </script>
 </body>
 </html>

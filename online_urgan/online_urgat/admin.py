@@ -4,11 +4,9 @@ from .models import TeacherApplication, TeacherCertificate, Course, Test, TestQu
 
 
 def approve_teacher_application(application):
-    application.is_approved = True
-    application.save(update_fields=['is_approved'])
-    user = application.user
-    user.is_staff = True
-    user.save(update_fields=['is_staff'])
+    # Rol mantiqi bitta joyda: TeacherApplication.approve()
+    # (is_approved + is_staff + UserProfile.is_verified)
+    application.approve()
 
 
 @admin.register(TeacherApplication)
@@ -17,6 +15,12 @@ class TeacherApplicationAdmin(admin.ModelAdmin):
     list_filter = ('is_approved',)
     search_fields = ('user__username', 'user__email', 'phone')
     actions = ['approve_selected']
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        # Admin panelda checkbox bosilganda rol darhol sinxron bo'ladi.
+        if obj.is_approved and not (obj.user.is_staff and obj.is_verified):
+            obj.approve()
 
     @admin.action(description='Tasdiqlash')
     def approve_selected(self, request, queryset):
