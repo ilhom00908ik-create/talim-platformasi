@@ -9,6 +9,8 @@ from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.shortcuts import redirect, render, get_object_or_404
 from django.utils import timezone
 
+from django.templatetags.static import static
+
 from .forms import TeacherRegistrationForm, TestForm, TestQuestionForm, validate_question_file
 from .models import Course, Enrollment, LiveLesson, TeacherApplication, TeacherCertificate, Test, TestAttempt, TestQuestion
 
@@ -455,6 +457,43 @@ def add_question_file_to_test(request, test_id):
     })
 
 
+DEFAULT_ICE_SERVERS = [
+    {'urls': 'stun:stun.l.google.com:19302'},
+    {'urls': 'stun:stun1.l.google.com:19302'},
+    {'urls': 'stun:stun2.l.google.com:19302'},
+    {'urls': 'stun:stun3.l.google.com:19302'},
+    {'urls': 'stun:stun4.l.google.com:19302'},
+]
+
+
+def build_live_room_config(request, lesson):
+    """live_join.html ichidagi <script id="liveRoomConfig"> uchun ma'lumotlar."""
+    user = request.user
+    is_teacher = bool(user.is_authenticated and user.pk == lesson.teacher_id)
+    display_name = user.get_full_name() or user.username
+
+    return json.dumps({
+        'lessonId': lesson.id,
+        'roomName': f'live_lesson_{lesson.id}',
+        'userId': user.pk,
+        'userName': display_name,
+        'role': 'teacher' if is_teacher else 'student',
+        'teacherId': lesson.teacher_id,
+        'teacherName': lesson.teacher.get_full_name() or lesson.teacher.username,
+        'isLive': bool(lesson.is_live),
+        'isTeacher': is_teacher,
+        'canControlMic': is_teacher,
+        'canShareScreen': True,
+        'isTeacherMutedByHost': False,
+        'screenOwnerId': None,
+        'wsPath': f'/ws/live/{lesson.id}/',
+        'dashboardUrl': '/online-urgat/dashboard/',
+        'homeUrl': '/',
+        # ICE serverlar settings.WEBRTC_ICE_SERVERS orqali sozlanadi (TURN ixtiyoriy).
+        'iceServers': getattr(settings, 'WEBRTC_ICE_SERVERS', DEFAULT_ICE_SERVERS),
+    }, ensure_ascii=False)
+
+
 @login_required(login_url='/online-urgat/login/')
 def join_live_lesson(request, lesson_id):
     try:
@@ -482,6 +521,7 @@ def join_live_lesson(request, lesson_id):
         'lesson': lesson,
         'is_live': bool(lesson.is_live),
         'is_teacher': is_teacher,
+        'live_room_config': build_live_room_config(request, lesson),
     })
 
 
