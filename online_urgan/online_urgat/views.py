@@ -1,3 +1,4 @@
+import io
 import json
 
 import requests
@@ -6,13 +7,70 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.core.files.base import ContentFile
+from django.db import transaction
 from django.shortcuts import redirect, render, get_object_or_404
 from django.utils import timezone
 
-from django.templatetags.static import static
+from PIL import Image, ImageOps, UnidentifiedImageError
 
-from .forms import TeacherRegistrationForm, TestForm, TestQuestionForm, validate_question_file
+from .forms import (
+    AnswerKeyForm,
+    TeacherRegistrationForm,
+    TestForm,
+    TestQuestionForm,
+    validate_question_file,
+)
 from .models import Course, Enrollment, LiveLesson, TeacherApplication, TeacherCertificate, Test, TestAttempt, TestQuestion
+
+
+MAX_SHARED_QUESTIONS = 200  # Bitta umumiy faylli testdagi maksimal savollar soni
+SHARED_PREVIEW_SIZE = (1400, 2400)  # Rasm preview'ining maksimal o'lchami (px)
+
+
+def build_shared_preview(uploaded_file, model_with_shared_file):
+    """Yuklangan rasm uchun kichik nusxa (preview) yaratadi.
+
+    Nima uchun kerak? Butun test uchun bitta rasm yuklanganda uning o'lchami
+    bir necha MB bo'lishi mumkin. O'qituvchi kalit sahifasida va talaba test
+    ishlash sahifasida katta faylni har safar yuklab olmasligi uchun
+    EXIF bo'yicha to'g'rilangan, siqilgan nusxa saqlanadi. PDF bilan
+    iframe orqali ishlaymiz, shuning uchun preview faqat rasmlar uchun.
+    """
+    if not uploaded_file:
+        return model_with_shared_file
+
+    if not str(uploaded_file.name).lower().endswith(Test.SHARED_IMAGE_EXTENSIONS):
+        # Yangi PDF yuklandi — eski rasm preview'i endi keraksiz
+        if model_with_shared_file.shared_preview:
+            model_with_shared_file.shared_preview.delete(save=False)
+            model_with_shared_file.shared_preview = None
+        return model_with_shared_file
+
+    try:
+        uploaded_file.seek(0)
+        image = Image.open(uploaded_file)
+        image = ImageOps.exif_transpose(image)
+        if image.mode not in ('RGB', 'L'):
+            image = image.convert('RGB')
+        image.thumbnail(SHARED_PREVIEW_SIZE, Image.LANCZOS)
+        buffer = io.BytesIO()
+        fmt = 'PNG' if image.mode == 'L' else 'JPEG'
+        image.save(buffer, format=fmt, quality=82, optimize=True)
+        buffer.seek(0)
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ValueError('Rasmni o\'qib bo\'lmadi. Boshqa fayl yuklang.') from exc
+    finally:
+        try:
+            uploaded_file.seek(0)
+        except (AttributeError, OSError):
+            pass
+
+    name = f"test_{model_with_shared_file.pk or 'new'}_{timezone.now():%Y%m%d%H%M%S}.{'png' if fmt == 'PNG' else 'jpg'}"
+    if model_with_shared_file.shared_preview:
+        model_with_shared_file.shared_preview.delete(save=False)
+    model_with_shared_file.shared_preview.save(name, ContentFile(buffer.read()), save=False)
+    return model_with_shared_file
 
 
 # O'qituvchi kabinetiga kirish uchun yagona haqiqat manbai.
@@ -290,7 +348,19 @@ def add_test(request):
         if form.is_valid():
             test = form.save(commit=False)
             test.teacher = request.user
+            if test.mode == Test.MODE_SHARED:
+                # Umumiy rejimda bitta fayl yetarli; savollar keyingi qadamda
+                # (javob kaliti) yaratiladi.
+                try:
+                    build_shared_preview(test.shared_file, test)
+                except ValueError as exc:
+                    messages.error(request, str(exc))
+                    return render(request, 'online_urgat/add_question.html', {'form': form, 'test': None})
             test.save()
+
+            if test.mode == Test.MODE_SHARED:
+                messages.success(request, 'Test yaratildi. Endi javob kalitini belgilang (masalan: 1-A, 2-B, 3-C).')
+                return redirect('online_urgat:test_answer_key', test_id=test.id)
 
             question_count = request.POST.get('question_count', '0')
             try:
@@ -457,6 +527,120 @@ def add_question_file_to_test(request, test_id):
     })
 
 
+@login_required(login_url='/online-urgat/login/')
+def test_answer_key(request, test_id):
+    """Umumiy PDF/rasm rejimi: bitta fayl + savollar javob kaliti (1-A, 2-B ...).
+
+    O'qituvchi bitta umumiy faylni yuklaydi, savollar sonini kiritadi va har bir
+    savol raqami uchun to'g'ri javob harfini belgilaydi. Savollar avtomatik
+    TestQuestion (mode=shared) sifatida yaratiladi.
+    """
+    if not teacher_allowed(request.user):
+        return redirect('online_urgat:teacher_pending')
+
+    test = get_object_or_404(Test, id=test_id, teacher=request.user)
+
+    submitted_key = {}
+    submitted_count = test.questions.count() or 10
+    submitted_key_text = test.answer_key_text()
+
+    if request.method == 'POST':
+        form = AnswerKeyForm(request.POST, request.FILES)
+        submitted_count = request.POST.get('question_count') or ''
+        submitted_key_text = request.POST.get('answer_key') or ''
+        if hasattr(form, 'answer_key_map'):
+            submitted_key = form.answer_key_map
+
+        if not form.is_valid():
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, error)
+        else:
+            count = form.cleaned_data['question_count']
+            answers = form.answer_key_map
+            shared_file = form.cleaned_data.get('shared_file')
+            file_error = None
+
+            has_file = bool(shared_file or test.shared_file or test.resource_pdf)
+            if not has_file:
+                messages.error(request, 'Avval umumiy PDF yoki rasm faylini yuklang.')
+            else:
+                if shared_file:
+                    try:
+                        validate_question_file(shared_file)
+                        build_shared_preview(shared_file, test)
+                    except Exception as exc:  # ValidationError ham, ValueError ham
+                        file_error = ' '.join(getattr(exc, 'messages', [str(exc)]))
+                        messages.error(request, file_error)
+
+            if has_file and file_error is None:
+                if shared_file:
+                    if test.shared_file:
+                        test.shared_file.delete(save=False)
+                    test.shared_file.save(shared_file.name, shared_file, save=False)
+
+                test.mode = Test.MODE_SHARED
+                test.save()
+
+                with transaction.atomic():
+                    existing = {q.order: q for q in test.questions.all()}
+                    for number in range(1, count + 1):
+                        question = existing.get(number)
+                        if question is None:
+                            question = TestQuestion(test=test, order=number)
+                        question.mode = TestQuestion.MODE_SHARED
+                        question.correct_option = answers[number]
+                        question.question_text = f'{number}-savol'
+                        question.save()
+
+                    # Ortiqcha (oldingi) savollar kalitga kirmasa o'chiriladi
+                    old = [q for q in test.questions.all() if q.order > count]
+                    deleted = len(old)
+                    for question in old:
+                        question.delete()
+
+                messages.success(
+                    request,
+                    f'Umumiy fayl saqlandi, {count} ta savol kaliti belgilandi.'
+                    + (f' {deleted} ta eski bog\'lanish tozalandi.' if deleted else ''),
+                )
+                return redirect('online_urgat:edit_test', test_id=test.id)
+
+        # Xato bo'lsa — kiritilgan qiymatlarni yo'qotmaymiz
+        context = _answer_key_context(test)
+        context.update({
+            'form': form,
+            'submitted_key': submitted_key,
+            'submitted_count': submitted_count,
+            'submitted_key_text': submitted_key_text,
+        })
+        return render(request, 'online_urgat/test_answer_key.html', context)
+
+    context = _answer_key_context(test)
+    context.update({
+        'form': AnswerKeyForm(initial={'question_count': submitted_count, 'answer_key': submitted_key_text}),
+        'submitted_key': {q.order: q.correct_option for q in test.questions.all() if q.correct_option},
+        'submitted_count': submitted_count,
+        'submitted_key_text': submitted_key_text,
+    })
+    return render(request, 'online_urgat/test_answer_key.html', context)
+
+
+def _answer_key_context(test):
+    existing_questions = list(test.questions.all())
+    return {
+        'test': test,
+        'shared_file_url': test.display_file_url,
+        'shared_file_is_pdf': test.display_file_is_pdf,
+        'shared_file_is_image': test.display_file_is_image,
+        'shared_preview_url': test.shared_preview_url,
+        'answer_key_text': test.answer_key_text(),
+        'option_letters': ['A', 'B', 'C', 'D'],
+        'existing_questions': existing_questions,
+        'max_questions': MAX_SHARED_QUESTIONS,
+    }
+
+
 DEFAULT_ICE_SERVERS = [
     {'urls': 'stun:stun.l.google.com:19302'},
     {'urls': 'stun:stun1.l.google.com:19302'},
@@ -464,6 +648,21 @@ DEFAULT_ICE_SERVERS = [
     {'urls': 'stun:stun3.l.google.com:19302'},
     {'urls': 'stun:stun4.l.google.com:19302'},
 ]
+
+
+def live_room_context(request, lesson):
+    """live_join.html (live_room.html) uchun shablon konteksti."""
+    user = request.user
+    is_teacher = bool(user.is_authenticated and user.pk == lesson.teacher_id)
+    return {
+        'lesson': lesson,
+        'is_live': bool(lesson.is_live),
+        'is_teacher': is_teacher,
+        'display_name': user.get_full_name() or user.username,
+        'display_initials': (user.get_full_name() or user.username or '?')[:1].upper(),
+        'teacher_name': lesson.teacher.get_full_name() or lesson.teacher.username,
+        'live_room_config': build_live_room_config(request, lesson),
+    }
 
 
 def build_live_room_config(request, lesson):
@@ -488,7 +687,8 @@ def build_live_room_config(request, lesson):
         'screenOwnerId': None,
         'wsPath': f'/ws/live/{lesson.id}/',
         'dashboardUrl': '/online-urgat/dashboard/',
-        'homeUrl': '/',
+        'homeUrl': '/dashboard/' if not is_teacher else '/',
+        'leaveUrl': '/online-urgat/dashboard/' if is_teacher else '/dashboard/',
         # ICE serverlar settings.WEBRTC_ICE_SERVERS orqali sozlanadi (TURN ixtiyoriy).
         'iceServers': getattr(settings, 'WEBRTC_ICE_SERVERS', DEFAULT_ICE_SERVERS),
     }, ensure_ascii=False)
@@ -517,12 +717,7 @@ def join_live_lesson(request, lesson_id):
     if not is_teacher and not lesson.is_live:
         messages.info(request, 'Dars hali boshlanmagan. O‘qituvchi darsni boshlagach, darsxona ochiladi.')
 
-    return render(request, 'online_urgat/live_join.html', {
-        'lesson': lesson,
-        'is_live': bool(lesson.is_live),
-        'is_teacher': is_teacher,
-        'live_room_config': build_live_room_config(request, lesson),
-    })
+    return render(request, 'online_urgat/live_join.html', live_room_context(request, lesson))
 
 
 @login_required(login_url='/online-urgat/login/')

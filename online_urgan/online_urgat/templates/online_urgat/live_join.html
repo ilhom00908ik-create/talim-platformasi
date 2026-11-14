@@ -1,143 +1,257 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 {% load static %}
 <html lang="uz">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{{ lesson.title }} | Jonli dars</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2322d3ee'/%3E%3C/svg%3E">
+    <meta name="theme-color" content="#000000">
+    <link rel="icon"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%2322d3ee'/%3E%3C/svg%3E">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap">
-    <link rel="stylesheet" href="{% static 'live_room/live_room.css' %}?v=5">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="{% static 'live_room.css' %}?v=8">
 </head>
-<body class="live-room">
-<div class="room-app">
-    <main class="room-main">
-        <header class="room-header">
-            <div class="room-header__title">
-                <span id="liveBadge" class="pill pill--live{% if not is_live %} pill--idle{% endif %}">
-                    <span class="pill__dot"></span>
-                    <span id="liveBadgeText">{% if is_live %}Jonli{% else %}Kutilyapti{% endif %}</span>
-                </span>
-                <div style="min-width:0">
-                    <h1>{{ lesson.title }}</h1>
-                    <div class="room-header__sub">{{ lesson.subject|default:'Umumiy dars' }}</div>
+
+<body class="live-room" data-role="{% if is_teacher %}teacher{% else %}student{% endif %}">
+    <div class="room-app" id="roomApp">
+        <main class="room-main">
+            <!-- ===================================================== header -->
+            <header class="room-header">
+                <div class="room-header__title">
+                    <span id="liveBadge" class="pill pill--live{% if not is_live %} pill--idle{% endif %}">
+                        <span class="pill__dot"></span>
+                        <span id="liveBadgeText">{% if is_live %}Jonli{% else %}Kutilyapti{% endif %}</span>
+                    </span>
+                    <div class="room-header__meta">
+                        <h1>{{ lesson.title }}</h1>
+                        <div class="room-header__sub">
+                            {{ lesson.subject|default:'Umumiy dars' }} · Ustoz: {{ teacher_name }}
+                        </div>
+                    </div>
+                </div>
+                <div class="room-header__actions">
+                    <span class="pill pill--count" title="Qatnashchilar soni">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                        </svg>
+                        <span id="participantCountNum">1</span>
+                    </span>
+                    <button id="togglePeopleBtn" type="button" class="ctrl-btn ctrl-btn--ghost ctrl-btn--on"
+                        title="Qatnashchilar panelini yopish/ochish" aria-controls="roomSide" aria-expanded="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        <span>Panel</span>
+                    </button>
+                    <button id="copyRoomLink" type="button" class="ctrl-btn ctrl-btn--ghost"
+                        title="Dars havolasini nusxalash">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        <span>Havola</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- ====================================================== stage -->
+            <div class="stage" id="stageView">
+                <!-- 1) Grid: ekran uzatilmasa, qora fonda qatnashchilar to'ri -->
+                <div class="stage__dock" id="stageDock">
+                    <div class="grid-layout" id="videoGrid"></div>
+                </div>
+
+                <!-- 2) Screen: ustoz ekrani katta ko'rinadi -->
+                <div class="stage__screen" id="screenLayer" aria-hidden="true">
+                    <video id="screenVideo" autoplay playsinline></video>
+                    <div class="stage__screen-empty" id="screenEmpty" hidden>Ekran yuklanmoqda…</div>
+                </div>
+
+                <!-- 3) Ustoz oynachasi — screen rejimida ham ustki qatlamda -->
+                <div class="pip" id="pipWindow" hidden>
+                    <video id="pipVideo" autoplay playsinline muted></video>
+                    <div class="tile__placeholder" id="pipPlaceholder" hidden><span id="pipInitials">{{
+                            teacher_name|slice:":1" }}</span></div>
+                    <div class="pip__ring" id="pipRing"></div>
+                    <div class="tile__label">
+                        <span class="mic-badge" id="pipMic"></span>
+                        <span class="tile__name" id="pipName">{{ teacher_name }}</span>
+                        <span class="tile__role">Ustoz</span>
+                    </div>
+                    <div class="tile__toolbar">
+                        <button type="button" class="tile-btn" data-pip-max title="Kattalashtirish / kichraytirish">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M15 3h6v6" />
+                                <path d="M9 21H3v-6" />
+                                <path d="M21 3l-7 7" />
+                                <path d="M3 21l7-7" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="meter pip__meter">
+                        <div class="meter__fill" id="pipMeter"></div>
+                    </div>
+                </div>
+
+                <!-- 4) Sahna ustki qatlami: indikatorlar -->
+                <div class="stage__topbar">
+                    <div class="stage-chip" id="speakingChip" hidden>
+                        <span class="mic-badge is-live"></span>
+                        <span id="speakingName"></span> gapiradi
+                    </div>
+                    <div class="stage-chip stage-chip--screen" id="screenChip" hidden>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="3" width="20" height="14" rx="2" />
+                            <line x1="8" y1="21" x2="16" y2="21" />
+                            <line x1="12" y1="17" x2="12" y2="21" />
+                        </svg>
+                        <span id="screenChipText">Ustoz ekrani</span>
+                    </div>
+                </div>
+
+                <!-- 5) Screen rejimida pastdagi qatnashchilar lentasi -->
+                <div class="stage__strip" id="stageStrip" hidden>
+                    <div class="strip" id="stripList"></div>
+                </div>
+
+                <!-- 6) Kutish holati (peer ulanishlari tugagach JS yashiradi) -->
+                <div class="stage-hint" id="stageHint">
+                    <div class="stage-hint__avatar">{{ display_initials }}</div>
+                    <h2>{{ lesson.title }}</h2>
+                    <p id="stageHintText">
+                        {% if is_teacher %}
+                        Kamera va mikrofon ruxsatini bering. Dars boshlangach bu yerda qatnashchilar qora fonga to'ri
+                        (grid)
+                        shaklida chiqadi. Istasangiz "Ekranni uzatish" tugmasi bilan ekraningizni ko'rsating.
+                        {% else %}
+                        Dars boshlanishini kuting. Ustoz darsga kirgach, bu yerda qatnashchilar qora fonga to'ri (grid)
+                        shaklida chiqadi.
+                        {% endif %}
+                    </p>
+                    <div class="stage-hint__dots"><span></span><span></span></div>
                 </div>
             </div>
-            <div class="room-header__actions">
-                <span id="participantCount" class="pill pill--count"><span id="participantCountNum">1</span> qatnashchi</span>
-                <button id="copyRoomLink" type="button" class="ctrl-btn" title="Dars havolasini nusxalash">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                    <span>Havola</span>
-                </button>
-            </div>
-        </header>
 
-        <div class="stage" id="stageView">
-            <!-- Ekran rejimi: faqat uzatilayotgan ekran -->
-            <div class="stage__screen" id="screenLayer">
-                <video id="screenVideo" autoplay playsinline></video>
-            </div>
+            <!-- ================================================== controls -->
+            <div class="room-controls">
+                <div class="ctrl-group">
+                    <button id="toggleMicBtn" type="button" class="ctrl-btn ctrl-btn--on"
+                        title="Mikrofonni yoqish / o'chirish" aria-pressed="true">
+                        <span class="ctrl-btn__icon" id="micBtnIcon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                                <line x1="12" y1="19" x2="12" y2="23" />
+                            </svg>
+                        </span>
+                        <span id="micBtnText">Mikrofon yoniq</span>
+                        <span class="ctrl-btn__level"><span id="myLevel" class="ctrl-btn__level-fill"></span></span>
+                    </button>
 
-            <!-- Odatiy holat: qora fon ustida qatnashchilar grid'i -->
-            <div class="stage__dock" id="stageDock">
-                <div class="grid-layout" id="videoGrid"></div>
-            </div>
+                    <button id="toggleCamBtn" type="button" class="ctrl-btn ctrl-btn--on"
+                        title="Kamerani yoqish / o'chirish" aria-pressed="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="23 7 16 12 23 17 23 7" />
+                            <rect x="1" y="5" width="15" height="14" rx="2" />
+                        </svg>
+                        <span id="camBtnText">Kamera yoniq</span>
+                    </button>
 
-            <!-- PiP: ustoz kamerasi (doim ustki qatlamda) -->
-            <div class="pip" id="pipWindow" hidden>
-                <video id="pipVideo" autoplay playsinline muted></video>
-                <div class="tile__placeholder" id="pipPlaceholder" hidden>
-                    <span id="pipInitials">U</span>
+                    <button id="shareScreenBtn" type="button" class="ctrl-btn" hidden title="Ekranni uzatish">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+                            <line x1="8" y1="21" x2="16" y2="21"></line>
+                            <line x1="12" y1="17" x2="12" y2="21"></line>
+                        </svg>
+                        <span id="shareScreenText">Ekranni uzatish</span>
+                    </button>
+
+                    <button id="muteAllBtn" type="button" class="ctrl-btn" data-muted="0" hidden
+                        title="Barcha qatnashchilar mikrofonini o'chirish">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                            <line x1="4" y1="4" x2="20" y2="20" />
+                        </svg>
+                        <span id="muteAllText">Hammasini o'chirish</span>
+                    </button>
                 </div>
-                <div class="tile__label">
-                    <span class="mic-badge" id="pipMic"></span>
-                    <span class="tile__name" id="pipName">{{ lesson.teacher.get_full_name|default:lesson.teacher.username|escape }}</span>
-                    <span class="tile__role">Host</span>
+                <div class="ctrl-group">
+                    <button id="toggleFullscreenBtn" type="button" class="ctrl-btn ctrl-btn--ghost"
+                        title="To'liq ekran">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
+                            <path d="M21 8V5a2 2 0 0 0-2-2h-3"></path>
+                            <path d="M3 16v3a2 2 0 0 0 2 2h3"></path>
+                            <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
+                        </svg>
+                        <span>To'liq ekran</span>
+                    </button>
+                    <button id="leaveRoomBtn" type="button" class="ctrl-btn ctrl-btn--danger">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                        <span>Chiqish</span>
+                    </button>
                 </div>
-                <div class="tile__toolbar">
-                    <button type="button" class="tile-btn" data-pip-toggle title="Kattalashtirish / kichraytirish"></button>
-                    <button type="button" class="tile-btn" data-pip-dock title="Grid ichiga qaytarish"></button>
+            </div>
+        </main>
+
+        <!-- ==================================================== sidebar -->
+        <aside class="room-side" id="roomSide">
+            <section class="side-card side-card--people">
+                <div class="side-card__head">
+                    <h2>Qatnashchilar</h2>
+                    <span id="peopleCount" class="pill pill--count">1</span>
                 </div>
-                <div class="tile__meter meter"><div class="meter__fill" id="pipMeter"></div></div>
-            </div>
+                <div id="peopleList" class="people-list"></div>
+            </section>
 
-            <div class="stage__topbar">
-                <div class="stage-chip" id="speakingChip" hidden>
-                    <span class="mic-badge is-live"></span>
-                    <span id="speakingName"></span> gapiradi
+            <section class="side-card side-card--chat">
+                <div class="side-card__head">
+                    <h2>Chat</h2>
+                    <span class="pill pill--chat">Live</span>
                 </div>
-                <div class="stage-chip stage-chip--screen" id="screenChip" hidden>
-                    Ekran uzatilmoqda
-                </div>
-            </div>
+                <div id="chatMessages" class="chat-list" aria-live="polite"></div>
+                <form id="chatForm" class="chat-form" autocomplete="off">
+                    <input id="chatInput" type="text" maxlength="500" placeholder="Xabar yozing…"
+                        aria-label="Chat xabari">
+                    <button type="submit" class="ctrl-btn ctrl-btn--primary" title="Yuborish">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
+                    </button>
+                </form>
+            </section>
+        </aside>
+    </div>
 
-            <div class="stage-hint" id="stageHint">
-                <div class="stage-hint__avatar">{{ request.user.get_full_name|default:request.user.username|slice:":1"|upper }}</div>
-                <h2>Darsxonaga xush kelibsiz</h2>
-                <p id="stageHintText">Kamera va mikrofon ruxsatini bering â€” qatnashchilar shu yerda to'r (grid) shaklida chiqadi.</p>
-            </div>
-        </div>
+    <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
-        <div class="room-controls">
-            <div class="ctrl-group">
-                <button id="toggleMicBtn" type="button" class="ctrl-btn ctrl-btn--on">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line></svg>
-                    <span id="micBtnText">Mikrofon yoniq</span>
-                </button>
-                <button id="shareScreenBtn" type="button" class="ctrl-btn" hidden>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-                    <span id="shareScreenText">Ekranni uzatish</span>
-                </button>
-                <button id="muteAllBtn" type="button" class="ctrl-btn" data-muted="0" hidden>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="4" y1="4" x2="20" y2="20"></line></svg>
-                    <span id="muteAllText">Hammasini o'chirish</span>
-                </button>
-            </div>
-            <div class="ctrl-group">
-                <button id="toggleFullscreenBtn" type="button" class="ctrl-btn" title="To'liq ekran">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
-                    <span>To'liq ekran</span>
-                </button>
-                <button id="leaveRoomBtn" type="button" class="ctrl-btn ctrl-btn--danger">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                    <span>Chiqish</span>
-                </button>
-            </div>
-        </div>
-    </main>
-
-    <aside class="room-side">
-        <section class="side-card side-card--people">
-            <div class="side-card__head">
-                <h2>Qatnashchilar</h2>
-                <span id="peopleCount" class="pill pill--count">1</span>
-            </div>
-            <div id="peopleList" class="people-list"></div>
-        </section>
-
-        <section class="side-card side-card--chat">
-            <div class="side-card__head">
-                <h2>Chat</h2>
-                <span class="pill">Live</span>
-            </div>
-            <div id="chatMessages" class="chat-list"></div>
-            <form id="chatForm" class="chat-form" autocomplete="off">
-                <input id="chatInput" type="text" maxlength="500" placeholder="Xabar yozing...">
-                <button type="submit" class="ctrl-btn ctrl-btn--primary">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                </button>
-            </form>
-        </section>
-    </aside>
-</div>
-
-<div class="toast-stack" id="toastStack"></div>
-
-<script id="liveRoomConfig" type="application/json">
-{{ live_room_config|safe }}
-</script>
-<script src="{% static 'live_room/live_room.js' %}?v=5" defer></script>
+    <script id="liveRoomConfig" type="application/json">{{ live_room_config|safe }}</script>
+    <script src="{% static 'live_room.js' %}?v=8" defer></script>
 </body>
+
 </html>

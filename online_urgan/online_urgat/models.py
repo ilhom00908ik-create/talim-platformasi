@@ -67,11 +67,29 @@ class Enrollment(models.Model):
 
 
 class Test(models.Model):
+    # Savol rejimlari (butun test uchun):
+    #   text   — har bir savol matn + A/B/C/D variantlari bilan yoziladi
+    #   shared — bitta umumiy PDF/rasm yuklanadi, o'qituvchi faqat 1-A, 2-B ...
+    #            ko'rinishida to'g'ri javob kalitini belgilaydi
+    MODE_TEXT = 'text'
+    MODE_SHARED = 'shared'
+    MODE_CHOICES = [
+        (MODE_TEXT, 'Odatiy (savollar alohida)'),
+        (MODE_SHARED, 'Umumiy PDF/rasm (javob kaliti bilan)'),
+    ]
+
+    SHARED_IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp')
+
     teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tests')
     title = models.CharField(max_length=200)
     subject = models.CharField(max_length=100)
+    mode = models.CharField(max_length=10, choices=MODE_CHOICES, default=MODE_TEXT)
     cover_image = models.ImageField(upload_to='test_covers/', blank=True, null=True)
     resource_pdf = models.FileField(upload_to='test_resources/', blank=True, null=True)
+    # Umumiy rejim uchun yagona fayl — PDF yoki rasm
+    shared_file = models.FileField(upload_to='test_shared/', blank=True, null=True)
+    # shared_file turi rasm bo'lsa — preview (kichik rasm) shu yerda saqlanadi
+    shared_preview = models.ImageField(upload_to='test_shared_previews/', blank=True, null=True)
     is_published = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -79,19 +97,86 @@ class Test(models.Model):
     def questions_count(self):
         return self.questions.count()
 
+    @property
+    def is_shared_mode(self):
+        return self.mode == self.MODE_SHARED and bool(self.shared_file)
+
+    @property
+    def shared_file_name(self):
+        file = self.shared_file or self.resource_pdf
+        return str(getattr(file, 'name', '') or '')
+
+    @property
+    def shared_file_is_pdf(self):
+        return self.shared_file_name.lower().endswith('.pdf')
+
+    @property
+    def shared_file_is_image(self):
+        return self.shared_file_name.lower().endswith(self.SHARED_IMAGE_EXTENSIONS)
+
+    @property
+    def shared_preview_url(self):
+        """O'qituvchining kalit sahifasida ko'rsatiladigan kichik rasm."""
+        if self.shared_preview:
+            return self.shared_preview.url
+        return ''
+
+    @property
+    def display_file_url(self):
+        """Talabaga ko'rsatiladigan umumiy fayl (shared_file yoki zaxira resource_pdf)."""
+        file = self.shared_file or self.resource_pdf
+        return file.url if file else ''
+
+    @property
+    def display_file_is_pdf(self):
+        file = self.shared_file or self.resource_pdf
+        return bool(file) and str(file.name).lower().endswith('.pdf')
+
+    @property
+    def display_file_is_image(self):
+        return self.shared_file_is_image
+
+    @classmethod
+    def parse_answer_key(cls, raw):
+        """'1-A, 2-B, 3-C' yoki 'A B C' ko'rinishidagi matnni {tartib raqami: harf} ga aylantiradi."""
+        import re
+
+        key = {}
+        if not raw:
+            return key
+        text = str(raw).upper()
+        pairs = re.findall(r'(\d+)\s*[-.:)\]]?\s*([A-D])\b', text)
+        if pairs:
+            for number, letter in pairs:
+                key[int(number)] = letter
+            return key
+        # Faqat harflar ketma-ket berilgan bo'lsa: "ABC DA" -> 1:A, 2:B ...
+        letters = re.findall(r'[A-D]', text)
+        for index, letter in enumerate(letters, start=1):
+            key[index] = letter
+        return key
+
+    def answer_key_text(self):
+        """Bazadagi javoblardan '1-A, 2-B ...' matnini hosil qiladi (o'qituvchi formasi uchun)."""
+        parts = [f'{q.order}-{q.correct_option}' for q in self.questions.all() if q.correct_option]
+        return ', '.join(parts)
+
     def __str__(self):
         return self.title
 
 
 class TestQuestion(models.Model):
     # Savol yaratish rejimlari:
-    #   text — odatiy rejim: savol matni + A/B/C/D variantlari qo'lda kiritiladi
-    #   file — fayl rejimi: rasm yoki PDF yuklanadi, faqat to'g'ri javob harfi belgilanadi
+    #   text   — odatiy rejim: savol matni + A/B/C/D variantlari qo'lda kiritiladi
+    #   file   — alohida fayl rejimi: har bir savol uchun rasm/PDF yuklanadi
+    #   shared — testning umumiy PDF/rasm fayli ichidagi savol: faqat to'g'ri javob harfi
     MODE_TEXT = 'text'
     MODE_FILE = 'file'
+    MODE_SHARED = 'shared'
     MODE_CHOICES = [
         (MODE_TEXT, 'Odatiy (variantlar bilan)'),
         (MODE_FILE, 'Rasm/PDF asosida'),
+        (MODE_SHARED, 'Umumiy fayl asosida'),
     ]
 
     test = models.ForeignKey(Test, on_delete=models.CASCADE, related_name='questions')
@@ -116,7 +201,16 @@ class TestQuestion(models.Model):
 
     @property
     def is_file_mode(self):
-        return self.mode == self.MODE_FILE
+        return self.mode in (self.MODE_FILE, self.MODE_SHARED)
+
+    @property
+    def is_shared_mode(self):
+        return self.mode == self.MODE_SHARED
+
+    @property
+    def shared_test_file_url(self):
+        """Umumiy rejimda savol fayli test.niki bo'ladi."""
+        return self.test.display_file_url if self.test_id else ''
 
     @property
     def display_file(self):
@@ -138,7 +232,7 @@ class TestQuestion(models.Model):
         file = self.display_file
         if not file:
             return False
-        return str(file.name).lower().endswith(('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'))
+        return str(file.name).lower().endswith(Test.SHARED_IMAGE_EXTENSIONS)
 
     @property
     def display_title(self):

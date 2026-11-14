@@ -32,11 +32,21 @@
             <a href="{% url 'online_urgat:teacher_dashboard' %}" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-white/10">Kabinetga qaytish</a>
         </div>
 
+        {% if form.errors %}
+            <div class="mb-6 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">
+                {% if form.non_field_errors %}{{ form.non_field_errors }}{% endif %}
+                {% for field in form %}
+                    {% if field.errors %}<div><b>{{ field.label }}:</b> {{ field.errors|join:', ' }}</div>{% endif %}
+                {% endfor %}
+            </div>
+        {% endif %}
+
         {% if test %}
             <div class="mb-6 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-slate-950/30 p-1.5">
                 <span class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-cyan-500/20">Odatiy rejim</span>
                 <a href="{% url 'online_urgat:add_question_bulk_to_test' test.id %}" class="rounded-xl px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-white/5">Ko'p savol</a>
                 <a href="{% url 'online_urgat:add_question_file_to_test' test.id %}" class="rounded-xl px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-white/5">Rasm/PDF yuklash orqali</a>
+                <a href="{% url 'online_urgat:test_answer_key' test.id %}" class="rounded-xl px-4 py-2 text-sm font-semibold text-emerald-200 hover:bg-emerald-500/10">Umumiy PDF + javob kaliti</a>
             </div>
         {% endif %}
 
@@ -87,12 +97,6 @@
                 <label class="mb-2 block text-sm font-medium text-slate-200">PDF material (ixtiyoriy)</label>
                 <input type="file" name="resource_pdf" accept=".pdf" class="block w-full text-sm text-slate-300 file:mr-3 file:rounded-xl file:border-0 file:bg-violet-500/80 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white">
             </div>
-
-            {% if form.errors %}
-                <div class="rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">
-                    {{ form.errors }}
-                </div>
-            {% endif %}
 
             <button type="submit" class="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 font-bold text-white shadow-lg shadow-cyan-500/20 hover:opacity-95">
                 Savolni saqlash

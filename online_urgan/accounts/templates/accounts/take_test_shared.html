@@ -1,0 +1,400 @@
+{% extends 'accounts/base.html' %}
+{% block title %}Test ishlash — {{ test.title }}{% endblock %}
+
+{% block content %}
+<style>
+    /* ==========================================================================
+       Talaba tomoni: chapda umumiy PDF/rasm, o'ngda javoblar varag'i.
+       (Bu CSS avvalgi tartibsiz blokning to'liq qayta yozilgan,
+       mobil qurilmalarga ham moslangan versiyasi.)
+       ========================================================================== */
+    .shared-test {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 400px;
+        gap: 18px;
+        align-items: start;
+    }
+
+    @media (max-width: 1100px) {
+        .shared-test {
+            grid-template-columns: minmax(0, 1fr);
+        }
+    }
+
+    .shared-viewer {
+        position: sticky;
+        top: 12px;
+        border-radius: 22px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: #0b0f19;
+    }
+
+    @media (max-width: 1100px) {
+        .shared-viewer {
+            position: static;
+        }
+    }
+
+    .shared-viewer__top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 10px 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(15, 23, 42, 0.85);
+        font-size: 12.5px;
+        color: #cbd5e1;
+    }
+
+    .shared-viewer__body {
+        position: relative;
+        height: min(80vh, 900px);
+        background: #0b0f19;
+    }
+
+    .shared-viewer__body iframe {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border: 0;
+        background: #0b0f19;
+    }
+
+    .shared-viewer__body img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        background: #0b0f19;
+        cursor: zoom-in;
+    }
+
+    /* Rasmni to'liq ekranda ko'rish (zoom) */
+    .shared-viewer__body img.is-zoomed {
+        cursor: zoom-out;
+    }
+
+    .shared-lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 90;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: rgba(0, 0, 0, 0.92);
+        overflow: auto;
+    }
+
+    .shared-lightbox img {
+        max-width: 100%;
+        max-height: none;
+        cursor: zoom-out;
+    }
+
+    .answer-sheet {
+        border-radius: 22px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(15, 23, 42, 0.55);
+        padding: 16px;
+        max-height: calc(100vh - 32px);
+        display: flex;
+        flex-direction: column;
+        position: sticky;
+        top: 12px;
+    }
+
+    @media (max-width: 1100px) {
+        .answer-sheet {
+            position: static;
+            max-height: none;
+        }
+    }
+
+    .answer-sheet__rows {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+        overflow-y: auto;
+        padding-right: 4px;
+        margin-top: 14px;
+    }
+
+    .answer-sheet__rows::-webkit-scrollbar { width: 6px; }
+    .answer-sheet__rows::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.3);
+        border-radius: 999px;
+    }
+
+    .answer-row {
+        display: grid;
+        grid-template-columns: 30px repeat(4, 1fr);
+        align-items: center;
+        gap: 4px;
+        padding: 3px;
+        border-radius: 10px;
+        border: 1px solid transparent;
+        transition: background .15s ease, border-color .15s ease;
+    }
+
+    .answer-row:hover { background: rgba(148, 163, 184, 0.06); }
+
+    .answer-row.is-missing {
+        border-color: rgba(244, 63, 94, 0.55);
+        background: rgba(244, 63, 94, 0.08);
+    }
+
+    .answer-row.is-answered .answer-row__num {
+        color: #6ee7b7;
+        border-color: rgba(34, 197, 94, 0.45);
+    }
+
+    .answer-row__num {
+        display: grid;
+        place-items: center;
+        height: 28px;
+        border-radius: 8px;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        font-size: 11.5px;
+        font-weight: 700;
+        color: #cbd5e1;
+    }
+
+    .opt {
+        position: relative;
+        display: block;
+    }
+
+    .opt input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .opt span {
+        display: grid;
+        place-items: center;
+        height: 28px;
+        border-radius: 8px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        background: rgba(255, 255, 255, 0.04);
+        font-size: 12px;
+        font-weight: 700;
+        color: #cbd5e1;
+        cursor: pointer;
+        user-select: none;
+        transition: all .14s ease;
+    }
+
+    .opt span:hover { border-color: rgba(34, 211, 238, 0.55); }
+
+    .opt input:checked + span {
+        background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+        border-color: transparent;
+        color: #fff;
+        box-shadow: 0 6px 16px rgba(34, 211, 238, 0.28);
+    }
+
+    .opt input:focus-visible + span {
+        outline: 2px solid #22d3ee;
+        outline-offset: 2px;
+    }
+
+    .answer-sheet__progress {
+        height: 6px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.1);
+        overflow: hidden;
+        margin-top: 10px;
+    }
+
+    .answer-sheet__progress > div {
+        height: 100%;
+        width: 0%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #22c55e, #22d3ee);
+        transition: width .2s ease;
+    }
+
+    @media (max-width: 620px) {
+        .answer-sheet__rows { grid-template-columns: minmax(0, 1fr); }
+        .shared-viewer__body { height: 58vh; }
+    }
+</style>
+
+<div class="mx-auto max-w-[1400px] pb-12">
+    <div class="glass rounded-[28px] p-5 sm:p-6">
+        <div class="flex flex-col gap-3 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+                <span class="inline-flex rounded-full border border-emerald-400/25 bg-emerald-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200">
+                    Umumiy fayl rejimi
+                </span>
+                <h1 class="mt-3 text-2xl font-black text-white sm:text-3xl">{{ test.title }}</h1>
+                <p class="mt-2 text-sm text-slate-300">
+                    {{ test.subject }} · {{ total_questions }} savol
+                    {% if test.display_file_is_pdf %}· PDF{% elif test.display_file_is_image %}· Rasm{% endif %}
+                </p>
+            </div>
+            <div class="text-sm text-slate-300">
+                Chapdagi faylni o'qib, o'ng tomondagi varaqda savol raqamlari bo'yicha javob belgilang.
+            </div>
+        </div>
+
+        {% if messages %}
+        <div class="mt-5 space-y-2">
+            {% for message in messages %}
+            <div class="{% if message.tags == 'success' %}border-emerald-400/35 bg-emerald-500/10 text-emerald-100{% else %}border-rose-400/35 bg-rose-500/10 text-rose-100{% endif %} rounded-xl border p-3 text-sm">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="shared-test mt-6">
+            <!-- Umumiy fayl: PDF uchun iframe, rasm uchun zoom qilinadigan sahifa -->
+            <div class="shared-viewer">
+                <div class="shared-viewer__top">
+                    <span>{% if test.display_file_is_pdf %}📄 Umumiy PDF{% else %}🖼️ Umumiy rasm{% endif %}</span>
+                    <span class="flex flex-wrap gap-2">
+                        {% if test.display_file_is_image %}
+                        <button type="button" id="zoomSharedImage"
+                            class="rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-[11.5px] font-semibold text-white hover:bg-white/10">
+                            Kattalashtirish
+                        </button>
+                        {% endif %}
+                        <a href="{{ test.display_file_url }}" target="_blank" rel="noopener"
+                            class="rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-[11.5px] font-semibold text-white hover:bg-white/10">Yangi
+                            oynada</a>
+                        <a href="{{ test.display_file_url }}" download
+                            class="rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-[11.5px] font-semibold text-white hover:bg-white/10">Yuklab
+                            olish</a>
+                    </span>
+                </div>
+                <div class="shared-viewer__body">
+                    {% if test.display_file_is_pdf %}
+                    <iframe src="{{ test.display_file_url }}#view=FitH" title="Umumiy test fayli" loading="lazy"></iframe>
+                    {% elif test.display_file_is_image %}
+                    <img src="{{ test.display_file_url }}" alt="{{ test.title }} — umumiy fayl" id="sharedImage" loading="lazy">
+                    {% elif test.display_file_url %}
+                    <iframe src="{{ test.display_file_url }}" title="Umumiy test fayli" loading="lazy"></iframe>
+                    {% else %}
+                    <div class="grid h-full place-items-center text-sm text-slate-400">
+                        Umumiy fayl yuklanmagan. O'qituvchi bilan bog'laning.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Javoblar varag'i -->
+            <form method="post" class="answer-sheet" id="answerSheet" autocomplete="off">
+                {% csrf_token %}
+                <div class="flex items-center justify-between gap-3">
+                    <h2 class="text-lg font-bold text-white">Javoblar varag'i</h2>
+                    <span id="answeredCount"
+                        class="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-slate-200">
+                        0 / {{ total_questions }}
+                    </span>
+                </div>
+                <p class="mt-1 text-xs text-slate-400">Har bir savol raqami uchun bitta harf tanlang.</p>
+
+                <div class="answer-sheet__progress">
+                    <div id="progressBar"></div>
+                </div>
+
+                <div class="answer-sheet__rows">
+                    {% for row in rows %}
+                    <div class="answer-row{% if row.selected %} is-answered{% endif %}{% if row.is_missing %} is-missing{% endif %}"
+                        data-row="{{ row.question.order }}">
+                        <span class="answer-row__num">{{ row.question.order }}</span>
+                        {% for letter, is_checked in row.options %}
+                        <label class="opt">
+                            <input type="radio" name="q_{{ row.question.id }}" value="{{ letter }}" {% if is_checked %}checked{% endif %}>
+                            <span>{{ letter }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <button type="submit"
+                    class="mt-4 w-full rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-4 py-3 font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:opacity-95">
+                    Testni yakunlash
+                </button>
+                <p class="mt-2 text-center text-[11.5px] text-slate-400">
+                    Javoblar faqat yakunlaganingizdan keyin tekshiriladi.
+                </p>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        'use strict';
+
+        const form = document.getElementById('answerSheet');
+        if (!form) return;
+
+        const total = Number('{{ total_questions|default:0|escapejs }}') || 0;
+        const counter = document.getElementById('answeredCount');
+        const bar = document.getElementById('progressBar');
+
+        function refresh() {
+            let answered = 0;
+            form.querySelectorAll('.answer-row').forEach((row) => {
+                const checked = row.querySelector('input[type="radio"]:checked');
+                row.classList.toggle('is-answered', Boolean(checked));
+                if (checked) {
+                    answered += 1;
+                    row.classList.remove('is-missing');
+                }
+            });
+            if (counter) counter.textContent = answered + ' / ' + total;
+            if (bar) bar.style.width = (total ? (answered / total) * 100 : 0) + '%';
+        }
+
+        form.addEventListener('change', refresh);
+        form.addEventListener('submit', (event) => {
+            const unanswered = total - form.querySelectorAll('.answer-row.is-answered').length;
+            if (unanswered > 0) {
+                const ok = window.confirm(unanswered + ' ta savol belgilanmagan. Baribir yakunlaysizmi?');
+                if (!ok) event.preventDefault();
+            }
+        });
+
+        // Rasmni kattalashtirish (lightbox)
+        const image = document.getElementById('sharedImage');
+        const zoomBtn = document.getElementById('zoomSharedImage');
+        let lightbox = null;
+
+        function openLightbox() {
+            if (!image || lightbox) return;
+            lightbox = document.createElement('div');
+            lightbox.className = 'shared-lightbox';
+            const big = new Image();
+            big.src = image.src;
+            big.alt = image.alt || 'Umumiy test fayli';
+            lightbox.appendChild(big);
+            lightbox.addEventListener('click', closeLightbox);
+            document.body.appendChild(lightbox);
+            document.addEventListener('keydown', onKey);
+        }
+
+        function closeLightbox() {
+            if (!lightbox) return;
+            lightbox.remove();
+            lightbox = null;
+            document.removeEventListener('keydown', onKey);
+        }
+
+        function onKey(event) {
+            if (event.key === 'Escape') closeLightbox();
+        }
+
+        if (image) image.addEventListener('click', openLightbox);
+        if (zoomBtn) zoomBtn.addEventListener('click', openLightbox);
+
+        refresh();
+    })();
+</script>
+{% endblock %}

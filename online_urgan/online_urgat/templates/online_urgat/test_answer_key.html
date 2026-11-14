@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="uz">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Umumiy fayl va javob kaliti — {{ test.title }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background:
+                radial-gradient(circle at top left, rgba(16, 185, 129, 0.16), transparent 28%),
+                radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.12), transparent 26%),
+                linear-gradient(135deg, #020817 0%, #0f172a 45%, #111827 100%);
+        }
+
+        .glass {
+            background: rgba(15, 23, 42, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            box-shadow: 0 25px 50px rgba(15, 23, 42, 0.35);
+        }
+
+        .glass-soft {
+            background: rgba(15, 23, 42, 0.28);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Javob kaliti qatori: [1]  [A] [B] [C] [D] */
+        .key-row {
+            display: grid;
+            grid-template-columns: 44px repeat(4, 1fr);
+            align-items: center;
+            gap: 8px;
+            padding: 4px;
+            border-radius: 14px;
+            border: 1px solid transparent;
+            transition: background .15s ease, border-color .15s ease;
+        }
+
+        .key-row:hover {
+            background: rgba(148, 163, 184, 0.06);
+        }
+
+        .key-row.is-filled .key-num {
+            color: #6ee7b7;
+            border-color: rgba(34, 197, 94, 0.45);
+        }
+
+        .key-num {
+            display: grid;
+            place-items: center;
+            height: 38px;
+            border-radius: 12px;
+            background: rgba(34, 211, 238, 0.1);
+            border: 1px solid rgba(34, 211, 238, 0.22);
+            font-size: 13px;
+            font-weight: 700;
+            color: #a5f3fc;
+        }
+
+        .answer-pill input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .answer-pill span {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 38px;
+            width: 100%;
+            border-radius: 11px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            background: rgba(255, 255, 255, 0.05);
+            font-size: 13px;
+            font-weight: 700;
+            color: #cbd5e1;
+            cursor: pointer;
+            transition: all .15s ease;
+            user-select: none;
+        }
+
+        .answer-pill span:hover {
+            border-color: rgba(34, 211, 238, 0.45);
+        }
+
+        .answer-pill input:checked+span {
+            background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+            border-color: transparent;
+            color: #fff;
+            box-shadow: 0 10px 22px rgba(34, 211, 238, 0.28);
+        }
+
+        .answer-pill input:focus-visible+span {
+            outline: 2px solid #22d3ee;
+            outline-offset: 2px;
+        }
+
+        .key-rows {
+            display: grid;
+            gap: 4px;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            max-height: 460px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .key-rows::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .key-rows::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.3);
+            border-radius: 999px;
+        }
+
+        .file-preview iframe {
+            display: block;
+            width: 100%;
+            height: 620px;
+            border: 0;
+            border-radius: 14px;
+            background: #fff;
+        }
+
+        .file-preview img {
+            display: block;
+            width: 100%;
+            max-height: 620px;
+            object-fit: contain;
+            border-radius: 14px;
+            background: #0b0f19;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen text-white">
+    <div class="mx-auto max-w-6xl px-4 py-10">
+        <div class="glass rounded-[30px] p-6 sm:p-8">
+            <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-200">Umumiy fayl rejimi</p>
+                    <h1 class="mt-2 text-3xl font-black">{{ test.title }}</h1>
+                    <p class="mt-2 max-w-2xl text-sm text-slate-300">
+                        Bitta PDF yoki rasm yuklang, so'ngra faqat savollar raqami bo'yicha to'g'ri javoblarni
+                        belgilang (1-A, 2-B, 3-C ...). Har bir savolga alohida fayl yuklash shart emas.
+                    </p>
+                </div>
+                <a href="{% url 'online_urgat:teacher_dashboard' %}"
+                    class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-white/10">Kabinetga
+                    qaytish</a>
+            </div>
+
+            <div class="mb-6 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-slate-950/30 p-1.5">
+                <a href="{% url 'online_urgat:add_question_to_test' test.id %}"
+                    class="rounded-xl px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-white/5">Odatiy rejim</a>
+                <a href="{% url 'online_urgat:add_question_bulk_to_test' test.id %}"
+                    class="rounded-xl px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-white/5">Ko'p savol</a>
+                <a href="{% url 'online_urgat:add_question_file_to_test' test.id %}"
+                    class="rounded-xl px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-white/5">Har savolga
+                    fayl</a>
+                <span
+                    class="rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-emerald-500/20">Umumiy
+                    PDF/rasm + kalit</span>
+            </div>
+
+            {% if messages %}
+            <div class="mb-5 space-y-2">
+                {% for message in messages %}
+                <div
+                    class="{% if message.tags == 'success' %}border-emerald-400/30 bg-emerald-500/10 text-emerald-100{% else %}border-amber-400/30 bg-amber-500/10 text-amber-100{% endif %} rounded-xl border p-3 text-sm">
+                    {{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if test.display_file_url and test.mode == 'text' %}
+            <div class="mb-5 rounded-xl border border-cyan-400/25 bg-cyan-500/10 p-3 text-sm text-cyan-100">
+                Diqqat: fayl yuklangan/tanlangan, lekin test rejimi "Odatiy". Saqlash tugmasini bossangiz test umumiy
+                fayl rejimiga o'tadi.
+            </div>
+            {% endif %}
+
+            <form method="post" enctype="multipart/form-data" class="space-y-6" id="answerKeyForm"
+                data-key="{{ submitted_key_text }}">
+                {% csrf_token %}
+
+                <div class="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                    <div class="glass-soft rounded-[24px] p-5">
+                        <label for="sharedFileInput" class="mb-2 block text-sm font-medium text-slate-200">1. Umumiy PDF
+                            yoki rasm</label>
+                        <input type="file" name="shared_file" accept=".pdf,image/*" id="sharedFileInput"
+                            class="block w-full text-sm text-slate-300 file:mr-3 file:rounded-xl file:border-0 file:bg-emerald-500/80 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white">
+                        <p class="mt-2 text-xs text-slate-400">
+                            PDF, JPG, PNG yoki WEBP. Bu fayl talabaga test davomida doim ko'rinib turadi.
+                            {% if shared_file_url %}
+                            <a href="{{ shared_file_url }}" target="_blank" rel="noopener"
+                                class="font-semibold text-cyan-300 hover:underline">Joriy faylni ochish</a>
+                            {% endif %}
+                        </p>
+                    </div>
+
+                    <div class="glass-soft rounded-[24px] p-5">
+                        <label for="questionCount" class="mb-2 block text-sm font-medium text-slate-200">2. Savollar
+                            soni</label>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <input type="number" name="question_count" id="questionCount" min="1"
+                                max="{{ max_questions }}" value="{{ submitted_count }}" required
+                                class="w-28 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400/80">
+                            <button type="button" id="generateRows"
+                                class="rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-3 py-2.5 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/25">
+                                Savollarni hosil qilish
+                            </button>
+                            <button type="button" id="fillAllA"
+                                class="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/10"
+                                title="Barcha javoblarni A qilib belgilash">Hammasi A</button>
+                            <button type="button" id="clearAll"
+                                class="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm font-semibold text-slate-200 hover:bg-white/10">Tozalash</button>
+                        </div>
+                        <p id="keyProgress" class="mt-2 text-xs text-slate-400">0 ta javob belgilangan.</p>
+                    </div>
+                </div>
+
+                <div class="glass-soft rounded-[24px] p-5">
+                    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <label class="block text-sm font-medium text-slate-200">3. To'g'ri javoblar kaliti</label>
+                        <span class="text-xs text-slate-400">Har bir savol uchun bitta harf tanlang —
+                            A / B / C / D</span>
+                    </div>
+
+                    <div id="keyRows" class="key-rows"></div>
+
+                    <details class="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
+                        <summary
+                            class="cursor-pointer text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
+                            Matn ko'rinishida kiritish (tez usul)</summary>
+                        <input type="text" name="answer_key" id="answerKeyText" value="{{ submitted_key_text }}"
+                            placeholder="1-A, 2-B, 3-C, 4-D ..."
+                            class="mt-3 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400/80">
+                        <p class="mt-1 text-[11px] text-slate-400">
+                            Masalan: <code>1-A, 2-B, 3-C</code> yoki <code>1A 2B 3C</code> yoki faqat
+                            <code>A B C D</code>. Bu maydon to'ldirilsa, yuqoridagi tanlovlardan ustun turadi.
+                        </p>
+                    </details>
+                </div>
+
+                <button type="submit"
+                    class="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-4 py-3 font-bold text-white shadow-lg shadow-emerald-500/20 hover:opacity-95">
+                    Faylni saqlash va kalitni tasdiqlash
+                </button>
+            </form>
+
+            <!-- Jonli ko'rinish: o'qituvchi faylni va kalitni bir vaqtda ko'radi -->
+            {% if shared_file_url %}
+            <div class="mt-8 grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
+                <div class="file-preview glass-soft overflow-hidden rounded-[24px] p-2">
+                    {% if shared_file_is_pdf %}
+                    <iframe src="{{ shared_file_url }}#view=FitH" title="Umumiy PDF"></iframe>
+                    {% elif shared_file_is_image %}
+                    {% if shared_preview_url %}
+                    <img src="{{ shared_preview_url }}" alt="Umumiy rasm" data-full="{{ shared_file_url }}"
+                        id="keyPreviewImage">
+                    <p class="mt-2 text-center text-[11px] text-slate-400">Rasmning kichraytirilgan nusxasi ko'rsatilgan
+                        —
+                        <a href="{{ shared_file_url }}" target="_blank" rel="noopener"
+                            class="font-semibold text-cyan-300 hover:underline">asl faylni ochish</a>
+                    </p>
+                    {% else %}
+                    <img src="{{ shared_file_url }}" alt="Umumiy rasm">
+                    {% endif %}
+                    {% else %}
+                    <a href="{{ shared_file_url }}" target="_blank" rel="noopener"
+                        class="inline-flex rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10">Faylni
+                        ochish</a>
+                    {% endif %}
+                </div>
+                <div class="glass-soft rounded-[24px] p-4">
+                    <h2 class="mb-3 text-lg font-bold text-white">Kalit xulosasi</h2>
+                    <div id="keyPreview" class="flex max-h-[420px] flex-wrap gap-2 overflow-y-auto text-sm"></div>
+                    <p class="mt-4 text-xs text-slate-400">Talaba ushbu faylni chap tomonda, javob tanlash panelini o'ng
+                        tomonda ko'radi.</p>
+                </div>
+                {% endif %}
+
+                {% if existing_questions %}
+                <div class="mt-8">
+                    <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+                        <h2 class="text-xl font-bold text-white">Saqlangan savollar ({{ existing_questions|length }})
+                        </h2>
+                        <a href="{% url 'online_urgat:edit_test' test.id %}"
+                            class="rounded-xl bg-amber-500/20 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/30">Testni
+                            tahrirlash</a>
+                    </div>
+                    <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                        {% for question in existing_questions %}
+                        <div class="glass-soft flex items-center justify-between gap-3 rounded-[18px] px-4 py-3">
+                            <span class="text-sm text-slate-200">{{ question.order }}-savol</span>
+                            <span class="rounded-lg bg-cyan-500/15 px-2.5 py-1 text-xs font-bold text-cyan-100">{{
+                                question.correct_option }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <script>
+            (function () {
+                'use strict';
+
+                const LETTERS = ['A', 'B', 'C', 'D'];
+                const MAX = Number('{{ max_questions|default:200|escapejs }}') || 200;
+                const form = document.getElementById('answerKeyForm');
+                const rowsBox = document.getElementById('keyRows');
+                const countInput = document.getElementById('questionCount');
+                const progress = document.getElementById('keyProgress');
+                const preview = document.getElementById('keyPreview');
+                const textInput = document.getElementById('answerKeyText');
+
+                // Serverdan kelgan kalitni o'qiymiz (matn maydonidagi qiymat ustun).
+                function parseKey(raw) {
+                    const key = {};
+                    if (!raw) return key;
+                    const text = String(raw).toUpperCase();
+                    const re = /(?:^|[^\d])(\d{1,3})\s*[-.:)\]=\s]*\s*([A-D])/g;
+                    let match;
+                    let found = false;
+                    while ((match = re.exec(text)) !== null) {
+                        key[Number(match[1])] = match[2];
+                        found = true;
+                    }
+                    if (found) return key;
+                    const lettersOnly = text.replace(/\d+/g, ' ').match(/[A-D]/g) || [];
+                    lettersOnly.forEach((letter, index) => { key[index + 1] = letter; });
+                    return key;
+                }
+
+                const initialKey = parseKey(form.dataset.key || '');
+
+                function buildRow(number) {
+                    const row = document.createElement('div');
+                    row.className = 'key-row';
+                    row.dataset.number = String(number);
+                    let html = '<span class="key-num">' + number + '</span>';
+                    LETTERS.forEach((letter) => {
+                        const checked = initialKey[number] === letter ? ' checked' : '';
+                        html += '<label class="answer-pill" title="' + number + '-' + letter + '">'
+                            + '<input type="radio" name="correct_' + number + '" value="' + letter + '"' + checked + '>'
+                            + '<span>' + letter + '</span>'
+                            + '</label>';
+                    });
+                    row.innerHTML = html;
+                    row.querySelectorAll('input').forEach((input) => {
+                        input.addEventListener('change', () => {
+                            // Qo'lda tanlash matn maydonidan ustun bo'lishi uchun uni tozalaymiz
+                            if (textInput && textInput.value.trim()) textInput.value = '';
+                            updateSummary();
+                        });
+                    });
+                    return row;
+                }
+
+                function readRows() {
+                    const result = {};
+                    rowsBox.querySelectorAll('input[type="radio"]:checked').forEach((input) => {
+                        result[input.name.replace('correct_', '')] = input.value;
+                    });
+                    return result;
+                }
+
+                function generateRows() {
+                    const total = Math.max(1, Math.min(MAX, Number(countInput.value) || 1));
+                    countInput.value = String(total);
+                    const current = readRows();
+                    rowsBox.innerHTML = '';
+                    const fragment = document.createDocumentFragment();
+                    for (let number = 1; number <= total; number += 1) {
+                        fragment.appendChild(buildRow(number));
+                    }
+                    rowsBox.appendChild(fragment);
+                    // Oldingi tanlovlarni tiklaymiz
+                    Object.keys(current).forEach((number) => {
+                        const input = rowsBox.querySelector(
+                            'input[name="correct_' + number + '"][value="' + current[number] + '"]'
+                        );
+                        if (input) input.checked = true;
+                    });
+                    updateSummary();
+                }
+
+                function updateSummary() {
+                    const chosen = readRows();
+                    const rows = rowsBox.querySelectorAll('.key-row');
+                    const done = Object.keys(chosen).length;
+                    const total = rows.length;
+
+                    rows.forEach((row) => {
+                        const has = Boolean(row.querySelector('input:checked'));
+                        row.classList.toggle('is-filled', has);
+                    });
+
+                    progress.textContent = done + ' / ' + total + ' ta javob belgilangan.';
+                    progress.className = 'mt-2 text-xs ' + (done === total && total > 0 ? 'text-emerald-300' : 'text-slate-400');
+
+                    if (preview) {
+                        const parts = Object.keys(chosen)
+                            .sort((a, b) => Number(a) - Number(b))
+                            .map((number) => '<span class="rounded-lg border border-white/10 bg-white/5 px-2 py-1">'
+                                + number + '-<b class="text-cyan-300">' + chosen[number] + '</b></span>');
+                        preview.innerHTML = parts.join('') || '<span class="text-slate-400">Hali belgilanmagan</span>';
+                    }
+
+                    if (textInput && !textInput.value.trim() && done) {
+                        textInput.placeholder = Object.keys(chosen).sort((a, b) => Number(a) - Number(b))
+                            .map((number) => number + '-' + chosen[number]).join(', ');
+                    }
+                }
+
+                document.getElementById('generateRows').addEventListener('click', generateRows);
+                document.getElementById('fillAllA').addEventListener('click', () => {
+                    rowsBox.querySelectorAll('.key-row').forEach((row) => {
+                        const input = row.querySelector('input[value="A"]');
+                        if (input) input.checked = true;
+                    });
+                    if (textInput) textInput.value = '';
+                    updateSummary();
+                });
+                document.getElementById('clearAll').addEventListener('click', () => {
+                    rowsBox.querySelectorAll('input[type="radio"]').forEach((input) => { input.checked = false; });
+                    if (textInput) textInput.value = '';
+                    updateSummary();
+                });
+                countInput.addEventListener('change', generateRows);
+
+                const HAS_EXISTING_FILE = {% if shared_file_url %}true{% else %} false{% endif %};
+
+            form.addEventListener('submit', (event) => {
+                const fileInput = document.getElementById('sharedFileInput');
+                const hasNewFile = fileInput && fileInput.files && fileInput.files.length > 0;
+                if (!hasNewFile && !HAS_EXISTING_FILE) {
+                    event.preventDefault();
+                    alert('Avval umumiy PDF yoki rasm faylini yuklang.');
+                    return;
+                }
+                const text = textInput ? textInput.value.trim() : '';
+                if (!text && Object.keys(readRows()).length === 0) {
+                    event.preventDefault();
+                    alert('Kamida bitta savolning to\'g\'ri javobini belgilang.');
+                }
+            });
+
+            generateRows();
+
+            // Rasmni asl hajmda ochish
+            const keyImage = document.getElementById('keyPreviewImage');
+            if (keyImage) {
+                keyImage.addEventListener('click', () => window.open(keyImage.dataset.full, '_blank', 'noopener'));
+                keyImage.style.cursor = 'zoom-in';
+            }
+
+            if (textInput && Object.keys(initialKey).length) {
+                const details = textInput.closest('details');
+                if (details) details.open = true;
+            }
+        }) ();
+        </script>
+</body>
+
+</html>

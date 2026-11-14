@@ -4,6 +4,7 @@ import re
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
 from django.db.models import Avg, Count, Sum
@@ -424,6 +425,13 @@ def take_test_view(request, test_id):
     test = get_object_or_404(Test, id=test_id, is_published=True, teacher__teacherapplication__is_approved=True)
     questions = list(test.questions.all().order_by('order', 'id'))
 
+    # Umumiy PDF/rasm rejimi: bitta fayl ko'rsatiladi, talaba 1..N savol uchun
+    # A/B/C/D javoblarini bir paneldan belgilaydi va bir marta topshiradi.
+    # Rad etilgan/yaratilayotgan testda `mode=shared` bo'lsa ham fayl bo'lmasa
+    # odatiy rejimga tushamiz.
+    if test.mode == Test.MODE_SHARED and test.display_file_url and questions:
+        return _take_shared_test(request, test, questions)
+
     if not questions:
         return render(request, 'accounts/take_test.html', {
             'test': test,
@@ -483,6 +491,85 @@ def take_test_view(request, test_id):
         'selected_answers': selected_answers,
         'current_selected': current_selected,
         'is_empty': False,
+    })
+
+
+def _shared_rows(questions, answers, missing):
+    """Shablon uchun har bir savolning tanlangan javobini oldindan hisoblaymiz
+    (maxsus template filterga bog'lanmaslik uchun)."""
+    letters = ['A', 'B', 'C', 'D']
+    rows = []
+    for question in questions:
+        selected = answers.get(str(question.id), '')
+        rows.append({
+            'question': question,
+            'selected': selected,
+            'is_missing': question.order in missing,
+            'options': [(letter, selected == letter) for letter in letters],
+        })
+    return rows
+
+
+def _take_shared_test(request, test, questions):
+    """Umumiy PDF/rasm rejimi: bitta fayl ko'rinadi, talaba 1..N savol uchun
+    A/B/C/D javoblarini bir varag'da belgilaydi va bir marta topshiradi."""
+    session_key = f'test_{test.id}_shared_answers'
+    total_questions = len(questions)
+    letters = ('A', 'B', 'C', 'D')
+
+    if request.method == 'POST':
+        answers = {}
+        for question in questions:
+            value = (request.POST.get(f'q_{question.id}') or '').strip().upper()
+            if value in letters:
+                answers[str(question.id)] = value
+        # Kiritilgan javoblar sessiyada saqlanadi — xato bo'lsa yo'qolmaydi
+        request.session[session_key] = answers
+
+        missing = [str(q.order) for q in questions if str(q.id) not in answers]
+        if missing:
+            messages.error(
+                request,
+                'Barcha savollarga javob belgilang. Belgilanmagan savollar: ' + ', '.join(missing),
+            )
+            return render(request, 'accounts/take_test_shared.html', {
+                'test': test,
+                'total_questions': total_questions,
+                'answered_count': len(answers),
+                'rows': _shared_rows(questions, answers, set(int(number) for number in missing)),
+                'submitted': False,
+            })
+
+        correct_answers = sum(
+            1 for question in questions
+            if answers.get(str(question.id)) == question.correct_option
+        )
+        percentage = (correct_answers / total_questions * 100) if total_questions else 0
+
+        attempt = TestAttempt.objects.create(
+            test=test,
+            student=request.user,
+            score=correct_answers,
+            total_questions=total_questions,
+            percentage=percentage,
+        )
+
+        request.session.pop(session_key, None)
+        return render(request, 'accounts/test_result.html', {
+            'test': test,
+            'attempt': attempt,
+            'score': correct_answers,
+            'total_questions': total_questions,
+            'percentage': percentage,
+        })
+
+    saved = request.session.get(session_key, {})
+    return render(request, 'accounts/take_test_shared.html', {
+        'test': test,
+        'total_questions': total_questions,
+        'answered_count': len([q for q in questions if str(q.id) in saved]),
+        'rows': _shared_rows(questions, saved, set()),
+        'submitted': False,
     })
 
 
