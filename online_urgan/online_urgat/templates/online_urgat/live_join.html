@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="{% static 'live_room.css' %}?v=12">
+    <link rel="stylesheet" href="{% static 'live_room.css' %}?v=13">
     <style>
         /* Zoom uslubi: butun xona foni mutlaqo qora */
         html,
@@ -24,6 +24,21 @@
 </head>
 
 <body class="live-room" data-role="{% if is_teacher %}teacher{% else %}student{% endif %}">
+    {# Kamera/mikrofon ruxsati berilmagan bo'lsa ko'rinadigan ogohlantirish #}
+    <div class="media-banner" id="mediaBanner" hidden role="alert">
+        <span class="media-banner__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="3" y1="3" x2="21" y2="21" />
+            </svg>
+        </span>
+        <span id="mediaBannerText">Kamera va mikrofon ruxsati kerak.</span>
+        <button id="mediaRetryBtn" type="button" class="ctrl-btn ctrl-btn--primary"><span>Ruxsat berish</span></button>
+    </div>
+
     <div class="room-app" id="roomApp">
         <main class="room-main">
             <!-- ===================================================== header -->
@@ -254,7 +269,7 @@
     <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
     <script id="liveRoomConfig" type="application/json">{{ live_room_config|safe }}</script>
-    <script src="{% static 'live_room.js' %}?v=12" defer></script>
+    <script src="{% static 'live_room.js' %}?v=14" defer></script>
 </body>
 
 </html>

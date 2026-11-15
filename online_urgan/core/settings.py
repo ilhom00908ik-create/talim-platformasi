@@ -91,11 +91,27 @@ CSRF_TRUSTED_ORIGINS = _split_env_list(os.getenv('CSRF_TRUSTED_ORIGINS'), DEFAUL
 # Proksi va Cookie xavfsizlik sozlamalari (Railway uchun moslashtirilgan)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SECURE_SSL_REDIRECT = False
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
+USE_X_FORWARDED_HOST = True
+
+
+def _env_flag(name, default):
+    """`True`/`False` env bayrog'i (bo'sh qiymat — standart)."""
+    raw = os.getenv(name)
+    if raw is None or not str(raw).strip():
+        return default
+    return str(raw).strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+# `SecurityCookie` faqat HTTPS orqali yuboriladi. Railway HTTPS beradi, lekin
+# lokalda `DEBUG=False` bilan daphne/runserver'ni http://127.0.0.1'da sinab
+# ko'rish kerak bo'ladi — u yerda brauzer Secure cookie'ni saqlamaydi va login
+# "ishlamayotgandek" ko'rinadi. Shuning uchun env orqali boshqariladi:
+#   COOKIE_SECURE=True   -> har doim Secure (tavsiya, prod)
+#   COOKIE_SECURE=False  -> hech qachon (lokal http sinov)
+SESSION_COOKIE_SECURE = _env_flag('COOKIE_SECURE', not DEBUG)
+CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE
 CSRF_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_SAMESITE = 'Lax'
-USE_X_FORWARDED_HOST = True
 
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '7122683345:AAEkTMQHuWwDezsq6KPQycGLwsMgK0LjExc')
 ADMIN_TELEGRAM_ID = os.getenv('ADMIN_TELEGRAM_ID', '7389059494')
@@ -199,22 +215,40 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [BASE_DIR / 'static']
 
-STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+# `collectstatic` shu papkaga yozadi. Railway'da loyiha ildizi `online_urgan/`
+# (railway.toml: cd online_urgan), shuning uchun yo'l shu yerga nisbatan olinadi.
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Ro'yxat bo'sh bo'lsa ham `django.contrib.staticfiles` bilan ziddiyat bo'lmaydi:
+# `online_urgan/static/` mavjud bo'lsa — qo'shiladi (live_room.css / live_room.js shu yerda).
+STATICFILES_DIRS = [BASE_DIR / 'static'] if (BASE_DIR / 'static').is_dir() else []
+
+# WhiteNoise: fayllarni gzip/brotli bilan siqib, APPEND_SLASH/404 sahifalarini ham
+# xizmat qiladi. Bu ikki kalit bo'lmasa `/static/...` so'rovlari WhiteNoise'ga
+# yetib bormaydi va admin sahifasi CSS'siz (oq/buzilgan) ko'rinadi.
+WHITENOISE_USE_FINDERS = True      # DEBUG=0 bo'lsa ham `static/` dagi fayllar topiladi
+WHITENOISE_AUTOREFRESH = DEBUG     # dev'da har fayl statik bo'ladi; prod'da sentinel fayl ishlaydi
+WHITENOISE_MAX_AGE = 0 if DEBUG else 60 * 60 * 24 * 30
 
 STORAGES = {
     'default': {
         'BACKEND': 'django.core.files.storage.FileSystemStorage',
     },
     'staticfiles': {
+        # `Compressed*` varianti fayl nomiga hash QO'SHMAYDI: `{% static %}`
+        # manzillari o'zgarmaydi, lekin fayllar `.gz` nusxasi bilan beriladi.
         'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
     },
 }
 
 MEDIA_URL = '/media/'
+# Media ham loyiha ildizida (railway'ga mos).
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Diqqat: WhiteNoise faqat STATIC_URL yo'lini xizmat qiladi. DEBUG=0 bo'lganda
+# MEDIA_URL ni Django o'zi bermaydi — buning uchun alohida view kerak
+# (core/urls.py dagi `media_files`).
 
 
 # Login URL configuration
@@ -237,12 +271,30 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
 # Production WebSocket channel layer
 REDIS_URL = os.getenv('REDIS_URL')
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer' if REDIS_URL else 'channels.layers.InMemoryChannelLayer',
-        'CONFIG': {'hosts': [REDIS_URL]} if REDIS_URL else {},
+
+# `channels_redis` o'rnatilmagan bo'lsa xato bermaymiz: InMemory layerga qaytamiz.
+# (Aks holda Railway'da paket yetishmasa ilova butunlay ishga tushmaydi.)
+# MUHIM: bir necha worker/instance bo'lsa Redis SHART — InMemory holati
+# protsess ichida qoladi va qatnashchilar bir-birini ko'rmaydi.
+try:
+    import channels_redis  # noqa: F401
+    _HAS_REDIS_BACKEND = True
+except ImportError:
+    _HAS_REDIS_BACKEND = False
+
+if REDIS_URL and _HAS_REDIS_BACKEND:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {'hosts': [REDIS_URL]},
+        }
     }
-}
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        }
+    }
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
@@ -253,12 +305,28 @@ MAILERS = {
     },
 }
 
-# Legacy fallback for local dev if Redis package is not installed.
-if not REDIS_URL:
-    CHANNEL_LAYERS = {
-        'default': {
-            'BACKEND': 'channels.layers.InMemoryChannelLayer',
-        }
-    }
 
-# --- keep static settings below if necessary ---
+
+# Jonli darsxona (WebRTC) uchun ICE serverlar. TURN bo'lmasa ba'zi operator
+# tarmoqlarida (NAT) kamera/ovoz oqimi ulanmaydi — Railway'da TURN_URL,
+# TURN_USERNAME, TURN_CREDENTIAL env o'zgaruvchilarini berib kuchaytirish mumkin.
+_WEBRTC_ICE = [
+    {'urls': 'stun:stun.l.google.com:19302'},
+    {'urls': 'stun:stun1.l.google.com:19302'},
+    {'urls': 'stun:stun2.l.google.com:19302'},
+]
+if os.getenv('TURN_URL'):
+    _WEBRTC_ICE.append({
+        'urls': os.getenv('TURN_URL'),
+        'username': os.getenv('TURN_USERNAME', ''),
+        'credential': os.getenv('TURN_CREDENTIAL', ''),
+    })
+WEBRTC_ICE_SERVERS = _WEBRTC_ICE
+
+# Production loglarini Railway'ning konsoliga chiqarish
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {'console': {'class': 'logging.StreamHandler'}},
+    'root': {'handlers': ['console'], 'level': os.getenv('LOG_LEVEL', 'INFO')},
+}

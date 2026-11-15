@@ -1,0 +1,173 @@
+﻿url        http://127.0.0.1:8011/online-urgat/login/
+http       200
+load       27911ms
+title      "Kirish"
+bodyChars  45
+patchright c:\Users\ilhom\.vscode\extensions\danielsanmedium.dscodegpt-3.24.84\standalone\
+browser    CODEGPT_BROWSER_PATH  C:\Program Files\Google\Chrome\Application\chrome.exe
+text       KABINET Kirish Username: Password: Kirish
+script     [
+ {
+  "step": "teacher boot",
+  "boot": "ran:liveRoom-ok"
+ },
+ {
+  "step": "teacher alone",
+  "teacher": {
+   "scriptLoaded": true,
+   "socket": null,
+   "peers": [],
+   "local": null,
+   "micBtn": "Mikrofon yoniq",
+   "count": "1",
+   "tiles": [],
+   "screenMode": false,
+   "screen": "0x0",
+   "chat": []
+  }
+ },
+ {
+  "step": "student boot",
+  "boot": "ran:liveRoom-ok"
+ },
+ {
+  "step": "both",
+  "teacher": {
+   "scriptLoaded": true,
+   "socket": null,
+   "peers": [
+    {
+     "state": "new",
+     "remote": []
+    }
+   ],
+   "local": null,
+   "micBtn": "Mikrofon yoniq",
+   "count": "2",
+   "tiles": [
+    {
+     "name": "qastudent",
+     "video": "0x0"
+    }
+   ],
+   "screenMode": false,
+   "screen": "0x0",
+   "chat": []
+  },
+  "student": {
+   "scriptLoaded": true,
+   "socket": null,
+   "peers": [
+    {
+     "state": "new",
+     "remote": []
+    }
+   ],
+   "local": null,
+   "micBtn": "Mikrofon yoniq",
+   "count": "2",
+   "tiles": [
+    {
+     "name": "qastudent",
+     "video": "0x0"
+    }
+   ],
+   "screenMode": false,
+   "screen": "0x0",
+   "chat": []
+  }
+ },
+ {
+  "step": "chat",
+  "teacherChat": [
+   "qastudentAssalomu alaykum!",
+   "qastudentAssalomu alaykum!"
+  ]
+ },
+ {
+  "step": "mute-all",
+  "student": {
+   "scriptLoaded": true,
+   "socket": null,
+   "peers": [
+    {
+     "state": "new",
+     "remote": []
+    }
+   ],
+   "local": null,
+   "micBtn": "Mikrofon o‘chirilgan",
+   "count": "2",
+   "tiles": [
+    {
+     "name": "qastudent",
+     "video": "0x0"
+    }
+   ],
+   "screenMode": false,
+   "screen": "0x0",
+   "chat": [
+    "qaapprovedUstoz hamma mikrofonni o'chirdi.",
+    "qaapprovedUstoz hamma mikrofonni o'chirdi."
+   ]
+  }
+ },
+ {
+  "step": "screen-share",
+  "teacher": {
+   "scriptLoaded": true,
+   "socket": null,
+   "peers": [
+    {
+     "state": "new",
+     "remote": []
+    }
+   ],
+   "local": null,
+   "micBtn": "Mikrofon yoniq",
+   "count": "2",
+   "tiles": [
+    {
+     "name": "qastudent",
+     "video": "0x0"
+    }
+   ],
+   "screenMode": true,
+   "screen": "1280x720",
+   "chat": [
+    "qaapprovedUstoz hamma mikrofonni o'chirdi.",
+    "TizimEkran uzatish boshlandi."
+   ]
+  },
+  "student": {
+   "scriptLoaded": true,
+   "socket": null,
+   "peers": [
+    {
+     "state": "new",
+     "remote": []
+    }
+   ],
+   "local": null,
+   "micBtn": "Mikrofon o‘chirilgan",
+   "count": "2",
+   "tiles": [
+    {
+     "name": "qastudent",
+     "video": "0x0"
+    }
+   ],
+   "screenMode": true,
+   "screen": "0x0",
+   "chat": [
+    "Tizimqaapproved ekran uzatishni boshladi.",
+    "Tizimqaapproved ekran uzatishni boshladi."
+   ]
+  }
+ }
+]
+
+console errors/warnings (1):
+  [error] Failed to load resource: the server responded with a status of 404 (Not Found)
+
+requests failed (0):

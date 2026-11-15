@@ -1,0 +1,6 @@
+﻿{
+ "offerBundle": true,
+ "setLocal": "ok",
+ "implicit": "ok, bundle=true",
+ "separate": "ok, bundle=true"
+}

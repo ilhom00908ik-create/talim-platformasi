@@ -1,0 +1,22 @@
+﻿{
+ "no-stun": {
+  "gathering": "complete",
+  "cands": [
+   "host:udp:172.20.64.1",
+   "host:udp:192.168.100.149",
+   "host:tcp:172.20.64.1",
+   "host:tcp:192.168.100.149",
+   "COMPLETE"
+  ]
+ },
+ "with-stun": {
+  "gathering": "gathering",
+  "cands": [
+   "host:udp:172.20.64.1",
+   "host:udp:192.168.100.149",
+   "srflx:udp:213.230.93.70",
+   "host:tcp:172.20.64.1",
+   "host:tcp:192.168.100.149"
+  ]
+ }
+}

@@ -1,0 +1,204 @@
+﻿url        http://127.0.0.1:8012/online-urgat/login/
+http       200
+load       40715ms
+title      "Kirish"
+bodyChars  45
+patchright c:\Users\ilhom\.vscode\extensions\danielsanmedium.dscodegpt-3.24.84\standalone\
+browser    CODEGPT_BROWSER_PATH  C:\Program Files\Google\Chrome\Application\chrome.exe
+text       KABINET Kirish Username: Password: Kirish
+script     {
+ "teacherBoot": "ok",
+ "teacherAlone": {
+  "socket": "OPEN",
+  "local": [
+   "audio:live",
+   "video:live"
+  ],
+  "peers": [],
+  "count": "1",
+  "people": [
+   "qaapproved"
+  ],
+  "tiles": [],
+  "pip": "shown",
+  "screenMode": false,
+  "screen": "0x0",
+  "chat": []
+ },
+ "studentBoot": "ok",
+ "both": {
+  "teacher": {
+   "socket": "OPEN",
+   "local": [
+    "audio:live",
+    "video:live"
+   ],
+   "peers": [
+    {
+     "st": "new",
+     "out": [
+      "audio",
+      "video"
+     ],
+     "remote": []
+    }
+   ],
+   "count": "2",
+   "people": [
+    "qaapproved",
+    "qastudent"
+   ],
+   "tiles": [
+    "qastudent:0x0"
+   ],
+   "pip": "shown",
+   "screenMode": false,
+   "screen": "0x0",
+   "chat": []
+  },
+  "student": {
+   "socket": "OPEN",
+   "local": [
+    "audio:live",
+    "video:live"
+   ],
+   "peers": [
+    {
+     "st": "new",
+     "out": [
+      "audio",
+      "video"
+     ],
+     "remote": []
+    }
+   ],
+   "count": "2",
+   "people": [
+    "qaapproved",
+    "qastudent"
+   ],
+   "tiles": [
+    "qastudent:1280x720"
+   ],
+   "pip": "shown",
+   "screenMode": false,
+   "screen": "0x0",
+   "chat": []
+  }
+ },
+ "chat": [
+  "qastudentSalom, ustoz!"
+ ],
+ "chatAfterResync": [
+  "qastudentSalom, ustoz!"
+ ],
+ "muteAll": {
+  "student": {
+   "socket": "OPEN",
+   "local": [
+    "audio:live(off)",
+    "video:live"
+   ],
+   "peers": [
+    {
+     "st": "new",
+     "out": [
+      "audio",
+      "video"
+     ],
+     "remote": []
+    }
+   ],
+   "count": "2",
+   "people": [
+    "qaapproved",
+    "qastudent[M]"
+   ],
+   "tiles": [
+    "qastudent:1280x720"
+   ],
+   "pip": "shown",
+   "screenMode": false,
+   "screen": "0x0",
+   "chat": [
+    "SizSalom, ustoz!",
+    "qaapprovedUstoz hamma mikrofonni o'chirdi."
+   ]
+  }
+ },
+ "screen": {
+  "teacher": {
+   "socket": "OPEN",
+   "local": [
+    "audio:live",
+    "video:live"
+   ],
+   "peers": [
+    {
+     "st": "new",
+     "out": [
+      "audio",
+      "video",
+      "video"
+     ],
+     "remote": []
+    }
+   ],
+   "count": "2",
+   "people": [
+    "qaapproved",
+    "qastudent[M]"
+   ],
+   "tiles": [
+    "qastudent:0x0"
+   ],
+   "pip": "shown",
+   "screenMode": true,
+   "screen": "1280x720",
+   "chat": [
+    "qastudentSalom, ustoz!",
+    "qaapprovedUstoz hamma mikrofonni o'chirdi.",
+    "TizimEkran uzatish boshlandi."
+   ]
+  },
+  "student": {
+   "socket": "OPEN",
+   "local": [
+    "audio:live(off)",
+    "video:live"
+   ],
+   "peers": [
+    {
+     "st": "new",
+     "out": [
+      "audio",
+      "video"
+     ],
+     "remote": []
+    }
+   ],
+   "count": "2",
+   "people": [
+    "qaapproved",
+    "qastudent[M]"
+   ],
+   "tiles": [
+    "qastudent:1280x720"
+   ],
+   "pip": "shown",
+   "screenMode": true,
+   "screen": "0x0",
+   "chat": [
+    "SizSalom, ustoz!",
+    "qaapprovedUstoz hamma mikrofonni o'chirdi.",
+    "Tizimqaapproved ekran uzatishni boshladi."
+   ]
+  }
+ }
+}
+
+console errors/warnings (1):
+  [error] Failed to load resource: the server responded with a status of 404 (Not Found)
+
+requests failed (0):
+

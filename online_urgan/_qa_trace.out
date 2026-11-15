@@ -1,0 +1,33 @@
+﻿url        http://127.0.0.1:8012/online-urgat/login/
+http       200
+load       8727ms
+title      "Kirish"
+bodyChars  45
+patchright c:\Users\ilhom\.vscode\extensions\danielsanmedium.dscodegpt-3.24.84\standalone\
+browser    CODEGPT_BROWSER_PATH  C:\Program Files\Google\Chrome\Application\chrome.exe
+text       KABINET Kirish Username: Password: Kirish
+script     {
+ "boot": {
+  "events": [],
+  "wsPath": "/ws/live/33/"
+ },
+ "state": {
+  "socketType": "object",
+  "socketReady": null,
+  "socketUrl": null,
+  "peerCount": 0,
+  "local": null,
+  "banner": null,
+  "toasts": [],
+  "participants": "1",
+  "expectedWs": "/ws/live/33/",
+  "host": "127.0.0.1:8012"
+ },
+ "manual": "open+message: {\"type\": \"room-state\", \"user_id\": 51, \"user_name\": \"qaapproved\", \"role\": \"teache",
+ "errs": []
+}
+
+console errors/warnings (1):
+  [error] Failed to load resource: the server responded with a status of 404 (Not Found)
+
+requests failed (0):

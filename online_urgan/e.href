@@ -1,0 +1,14 @@
+url        http://127.0.0.1:8011/admin/login/
+http       200
+load       99ms
+title      "Log in | Django site admin"
+bodyChars  97
+patchright c:\Users\ilhom\.vscode\extensions\danielsanmedium.dscodegpt-3.24.84\standalone\
+browser    CODEGPT_BROWSER_PATH  C:\Program Files\Google\Chrome\Application\chrome.exe
+text       Skip to main content Django administration Toggle theme (current theme: auto) Username: Password:
+eval       "EVAL ERROR: Error: page.evaluate: SyntaxError: Unexpected token ')'"
+
+console errors/warnings (1):
+  [error] Failed to load resource: the server responded with a status of 404 (Not Found)
+
+requests failed (0):

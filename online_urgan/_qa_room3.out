@@ -1,0 +1,217 @@
+﻿url        http://127.0.0.1:8012/online-urgat/login/
+http       200
+load       32381ms
+title      "Kirish"
+bodyChars  45
+patchright c:\Users\ilhom\.vscode\extensions\danielsanmedium.dscodegpt-3.24.84\standalone\
+browser    CODEGPT_BROWSER_PATH  C:\Program Files\Google\Chrome\Application\chrome.exe
+text       KABINET Kirish Username: Password: Kirish
+script     [
+ {
+  "step": "teacher boot",
+  "r": "booted"
+ },
+ {
+  "step": "teacher alone",
+  "t": {
+   "ready": null,
+   "peers": [],
+   "local": null,
+   "mic": "Mikrofon yoniq",
+   "cam": "Kamera yoniq",
+   "count": "1",
+   "tiles": [],
+   "gridVideos": [],
+   "pipVisible": true,
+   "screenMode": false,
+   "screenVideo": "0x0",
+   "screenEmptyHidden": true,
+   "chat": [],
+   "people": [
+    "QqaapprovedUstoz"
+   ]
+  }
+ },
+ {
+  "step": "student boot",
+  "r": "booted"
+ },
+ {
+  "step": "both",
+  "t": {
+   "ready": null,
+   "peers": [
+    {
+     "st": "new",
+     "remote": []
+    }
+   ],
+   "local": null,
+   "mic": "Mikrofon yoniq",
+   "cam": "Kamera yoniq",
+   "count": "2",
+   "tiles": [
+    "qastudent"
+   ],
+   "gridVideos": [
+    "0x0"
+   ],
+   "pipVisible": true,
+   "screenMode": false,
+   "screenVideo": "0x0",
+   "screenEmptyHidden": true,
+   "chat": [],
+   "people": [
+    "QqaapprovedUstoz",
+    "Qqastudent"
+   ]
+  },
+  "s": {
+   "ready": null,
+   "peers": [
+    {
+     "st": "new",
+     "remote": []
+    }
+   ],
+   "local": null,
+   "mic": "Mikrofon yoniq",
+   "cam": "Kamera yoniq",
+   "count": "2",
+   "tiles": [
+    "qastudent"
+   ],
+   "gridVideos": [
+    "1280x720"
+   ],
+   "pipVisible": true,
+   "screenMode": false,
+   "screenVideo": "0x0",
+   "screenEmptyHidden": true,
+   "chat": [],
+   "people": [
+    "QqaapprovedUstoz",
+    "QqastudentSiz"
+   ]
+  }
+ },
+ {
+  "step": "chat",
+  "tChat": [
+   "qastudentAssalomu alaykum, ustoz!",
+   "qastudentAssalomu alaykum, ustoz!"
+  ]
+ },
+ {
+  "step": "mute-all",
+  "sMic": "Mikrofon o‘chirilgan",
+  "sLocal": null
+ },
+ {
+  "step": "screen",
+  "t": {
+   "ready": null,
+   "peers": [
+    {
+     "st": "new",
+     "remote": []
+    }
+   ],
+   "local": null,
+   "mic": "Mikrofon yoniq",
+   "cam": "Kamera yoniq",
+   "count": "2",
+   "tiles": [
+    "qastudent"
+   ],
+   "gridVideos": [
+    "0x0"
+   ],
+   "pipVisible": true,
+   "screenMode": true,
+   "screenVideo": "1280x720",
+   "screenEmptyHidden": true,
+   "chat": [
+    "qaapprovedUstoz hamma mikrofonni o'chirdi.",
+    "qaapprovedUstoz hamma mikrofonni o'chirdi.",
+    "TizimEkran uzatish boshlandi."
+   ],
+   "people": [
+    "QqaapprovedUstoz",
+    "Qqastudent"
+   ]
+  },
+  "s": {
+   "ready": null,
+   "peers": [
+    {
+     "st": "new",
+     "remote": []
+    }
+   ],
+   "local": null,
+   "mic": "Mikrofon o‘chirilgan",
+   "cam": "Kamera yoniq",
+   "count": "2",
+   "tiles": [
+    "qastudent"
+   ],
+   "gridVideos": [
+    "1280x720"
+   ],
+   "pipVisible": true,
+   "screenMode": true,
+   "screenVideo": "0x0",
+   "screenEmptyHidden": false,
+   "chat": [
+    "qaapprovedUstoz hamma mikrofonni o'chirdi.",
+    "Tizimqaapproved ekran uzatishni boshladi.",
+    "Tizimqaapproved ekran uzatishni boshladi."
+   ],
+   "people": [
+    "QqaapprovedUstoz",
+    "QqastudentSiz"
+   ]
+  }
+ },
+ {
+  "step": "screen-off",
+  "s": {
+   "ready": null,
+   "peers": [
+    {
+     "st": "new",
+     "remote": []
+    }
+   ],
+   "local": null,
+   "mic": "Mikrofon o‘chirilgan",
+   "cam": "Kamera yoniq",
+   "count": "2",
+   "tiles": [
+    "qastudent"
+   ],
+   "gridVideos": [
+    "1280x720"
+   ],
+   "pipVisible": true,
+   "screenMode": false,
+   "screenVideo": "0x0",
+   "screenEmptyHidden": true,
+   "chat": [
+    "Tizimqaapproved ekran uzatishni boshladi.",
+    "Tizimqaapproved ekran uzatishni to'xtatdi.",
+    "Tizimqaapproved ekran uzatishni to'xtatdi."
+   ],
+   "people": [
+    "QqaapprovedUstoz",
+    "QqastudentSiz"
+   ]
+  }
+ }
+]
+
+console errors/warnings (1):
+  [error] Failed to load resource: the server responded with a status of 404 (Not Found)
+
+requests failed (0):

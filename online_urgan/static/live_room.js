@@ -33,11 +33,16 @@
     const homeUrl = CFG.homeUrl || '/';
     const dashboardUrl = CFG.dashboardUrl || '/';
 
+    // `max-bundle` Chromium'ning ba'zi qurilmalarida (Chromebook/Android WebView
+    // kabi) `setLocalDescription()` da "no BUNDLE group" xatosini beradi, shundan
+    // keyin pc `stable` holatida qolib, offer umuman yuborilmaydi (qora oyna).
+    // `balanced` ham audio+video uchun bitta BUNDLE guruhini yaratadi va barcha
+    // brauzerlarda barqaror ishlaydi.
     const rtcConfig = {
         iceServers: Array.isArray(CFG.iceServers) && CFG.iceServers.length
             ? CFG.iceServers
             : [{ urls: 'stun:stun.l.google.com:19302' }],
-        bundlePolicy: 'max-bundle',
+        bundlePolicy: 'balanced',
         iceCandidatePoolSize: 0,
     };
 
@@ -90,6 +95,9 @@
         badgeText: $('liveBadgeText'),
         copyBtn: $('copyRoomLink'),
         toasts: $('toastStack'),
+        mediaBanner: $('mediaBanner'),
+        mediaBannerText: $('mediaBannerText'),
+        mediaRetryBtn: $('mediaRetryBtn'),
     };
 
     const ICON = {
@@ -125,8 +133,55 @@
     let screenOwnerId = null;
     let maximizedId = null;
     let reportedSpeaking = false;
+    let mediaRequest = null;      // getUM'ni ikki marta chaqirmaslik uchun
+    let mediaBlocked = false;     // ruxsat berilmagan / kamera-mikrofon yo'q
 
     const audioCtxRef = { ctx: null };
+
+    // Diagnostika oynasi (brauzer konsoli / e2e testlar uchun).
+    // Diqqat: diagnostika sabab xona mantiqi ishlamay qolmasligi uchun u
+    // alohida `try/catch` ichida; ilova kodi undan qat'i nazar davom etadi.
+    // Diqqat: `Object.assign` getterlarni EMAS, chaqirilgan QIYMATINI ko'chiradi —
+    // natijada `__liveRoom.socket` har doim `null` bo'lib qolardi. Shuning uchun
+    // `defineProperties` ishlatamiz (getter/setter saqlanadi).
+    const diagWindow = (window.__liveRoom = window.__liveRoom || {});
+    try {
+        Object.defineProperties(diagWindow, {
+            config: { get: () => CFG, enumerable: true },
+            socket: { get: () => socket, enumerable: true },
+            peers: { get: () => peers, enumerable: true },
+            users: { get: () => users, enumerable: true },
+            localStream: { get: () => localStream, enumerable: true },
+            screenOwnerId: { get: () => screenOwnerId, enumerable: true },
+        });
+    } catch (error) { /* diagnostika xonani to'xtatmasin */ }
+
+    // Brauzer konsolidan protokol tekshirish: __liveRoom.diag().sdp
+    diagWindow.diag = () => {
+        const peer = peers.values().next().value;
+        let lines = [];
+        try {
+            lines = (peer.pc.localDescription ? peer.pc.localDescription.sdp : '').split('\n')
+                .filter((line) => /^m=|^a=sendrecv|^a=recvonly|^a=sendonly|^a=inactive|^a=mid/.test(line));
+        } catch (error) { lines = ['sdp error: ' + error.message]; }
+        return {
+            role: me.role,
+            socket: socket ? socket.readyState : null,
+            users: [...users.values()].map((u) => u.id + ':' + u.role + ':' + u.name),
+            peer: peer ? {
+                id: peer.id,
+                state: peer.pc.connectionState,
+                signaling: peer.pc.signalingState,
+                senders: peer.pc.getTransceivers().map((t) => (t.sender.track ? t.sender.track.kind : '-') + '/' + t.direction),
+                receivers: peer.pc.getTransceivers().map((t) => (t.receiver.track ? t.receiver.track.kind : '-')),
+                remoteStream: peer.remoteStream.getTracks().map((t) => t.kind + ':' + t.readyState),
+                remoteScreen: peer.remoteScreenTrack ? peer.remoteScreenTrack.readyState : null,
+                sdp: lines,
+            } : null,
+            screenOwnerId: screenOwnerId,
+            me: me.id,
+        };
+    };
 
     /* ------------------------------------------------------ yordamchilar */
     const esc = (value) => String(value == null ? '' : value)
@@ -222,10 +277,17 @@
     /* ==================================================================
        WEBSOCKET
        ================================================================== */
+    // Yopilayotgan ulanishlar: ularning close/message hodisalari yangi ulanish
+    // holatini buzmasligi uchun WeakSet'da saqlanadi.
+    const retiredSockets = new WeakSet();
+
     function connect() {
         if (leaving) return;
         const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
         try {
+            // `socket` — eski ulanishni yopib, yangisini ochish (qayta ulanishda
+            // eski handler'lar tirik qolib, xabarlar ikki marta ishlanmasin).
+            detachSocket();
             socket = new WebSocket(proto + '://' + window.location.host + wsPath);
         } catch (error) {
             console.error('[live-room] socket create failed', error);
@@ -233,24 +295,34 @@
             return;
         }
 
-        socket.addEventListener('open', () => {
+        const ws = socket;
+
+        ws.addEventListener('open', () => {
+            if (isStale(ws)) return;
             reconnectAttempts = 0;
             wsSend({ type: 'join' });
-            if (localStream) sendMicState();
         });
 
-        socket.addEventListener('close', () => {
+        ws.addEventListener('close', (event) => {
+            if (isStale(ws)) return;
             joined = false;
             if (leaving) return;
+            // 1008 = server ruxsat bermadi (login yo'q yoki darsga huquq yo'q).
+            if (event && event.code === 1008) {
+                toast(CFG.userId ? 'Bu darsga ulanishga ruxsat yo‘q.' : 'Avval tizimga kiring.', 'error');
+                showMediaBanner('Jonli darsga ulanish uchun tizimga qayta kiring.', true);
+                return;
+            }
             reconnectAttempts += 1;
             const delay = Math.min(8000, 1500 * reconnectAttempts);
             toast('Ulanish uzildi, qayta ulanmoqda…', 'warn');
             setTimeout(connect, delay);
         });
 
-        socket.addEventListener('error', () => console.warn('[live-room] WS error'));
+        ws.addEventListener('error', () => console.warn('[live-room] WS error'));
 
-        socket.addEventListener('message', (event) => {
+        ws.addEventListener('message', (event) => {
+            if (isStale(ws)) return;
             let data;
             try { data = JSON.parse(event.data); } catch (error) { return; }
             if (data && data.type) {
@@ -259,6 +331,23 @@
                     .catch((error) => console.error('[live-room]', data.type, error));
             }
         });
+    }
+
+    function detachSocket() {
+        if (!socket) return;
+        const old = socket;
+        socket = null;
+        try {
+            // Handler'lar `addEventListener` bilan qo'shilgan — `onxxx = null`
+            // ularni olib tashlamaydi. Shuning uchun yopilayotgan ulanishni
+            // "nafaqaga chiqqan" deb belgilaymiz va uning hodisalarini e'tiborsiz qoldiramiz.
+            retiredSockets.add(old);
+            if (old.readyState === WebSocket.OPEN || old.readyState === WebSocket.CONNECTING) old.close();
+        } catch (error) { /* noop */ }
+    }
+
+    function isStale(ws) {
+        return retiredSockets.has(ws) || ws !== socket;
     }
 
     function onMessage(msg) {
@@ -332,7 +421,14 @@
             }
         });
 
+        // Chat tarixi faqat BIR MARTA chiziladi. `first` bayrog'i ishonchsiz
+        // (ikki `room-state` ketma-ket kelishi mumkin) — shuning uchun har bir
+        // xabarni alohida kalit bilan belgilaymiz.
+        if (!window.__chatSeen) window.__chatSeen = new Set();
         (msg.chat_history || []).forEach((item) => {
+            const key = [item.sender_id, item.message].join('\u0001');
+            if (window.__chatSeen.has(key)) return;
+            window.__chatSeen.add(key);
             addChat(item.sender, item.message, item.sender_id === me.id ? 'me' : '');
         });
 
@@ -399,6 +495,10 @@
     }
 
     function newPeer(id) {
+        if (typeof RTCPeerConnection !== 'function') {
+            showMediaBanner('Brauzer WebRTC (jonli video) ni qo‘llab-quvvatlamaydi. Chrome yoki Firefox’dan foydalaning.', true);
+            return null;
+        }
         const pc = new RTCPeerConnection(rtcConfig);
         const entry = {
             id: id,
@@ -428,36 +528,46 @@
             const screenTrack = track.kind === 'video' && isScreenLabel(track.label);
 
             if (screenTrack) {
-                // Ekran uzatish egasi screen-share signali orqali aniqlanadi:
-                // faqat egasi ekran eyishga ruxsat oladi, boshqa video track'lar
-                // kamera sifatida qabul qilinadi (takroriy "ekran" muammosi yo'q).
-                const user = users.get(id);
-                const isOwner = screenOwnerId === id || (!screenOwnerId && isTeacherTrackOwner(id));
-                if (screenOwnerId === null) screenOwnerId = id;
-                if (isOwner || !user) {
-                    entry.remoteScreenTrack = track;
-                    track.onmute = renderScreen;
-                    track.onunmute = renderScreen;
-                    track.onended = () => {
-                        if (entry.remoteScreenTrack === track) entry.remoteScreenTrack = null;
-                        renderScreen();
-                    };
-                    renderScreen();
+                // Ekran uzatish egasi `screen-share-start` signali orqali aniqlanadi.
+                // Track label'iga tayanmaymiz: Firefox va Chrome'da ekran track'i
+                // label'siz yoki "video0" nomi bilan kelishi mumkin — aks holda
+                // boshqa hamma uchun katta sahna qora qoladi. Bundan tashqari,
+                // ekran track'i PEER'ning 2-video track'i sifatida ham kelishi
+                // mumkin (label yo'q) — uni pastdagi shoxada aniqlaymiz.
+                const owner = screenOwnerId !== null ? screenOwnerId : id;
+                if (screenOwnerId === null && (isTeacherTrackOwner(id) || users.has(id))) {
+                    screenOwnerId = id;
                 }
-                if (track.kind === 'video' && !entry.remoteStream.getTracks().length) {
-                    // Ba'zi brauzerlarda screen track label bo'lmasligi mumkin —
-                    // u holda ekranni ko'rsatish uchun stream'ga ham qo'shamiz.
-                    entry.remoteStream.addTrack(track);
-                }
+                if (owner === id) attachRemoteScreen(entry, track);
             } else if (!entry.remoteStream.getTracks().some((item) => item.id === track.id)) {
+                // BR Muhim: ekran egasi allaqachon ulashgan bo'lsa, shu peer'dan
+                // kelgan BIRINCHI video track (kamera) stream'ga, undan keyingi
+                // video track esa ekran sifatida qabul qilinadi. Bu label'siz
+                // ekran track'ini ham to'g'ri joylashtiradi.
+                const alreadyHasVideo = entry.remoteStream.getVideoTracks().length > 0;
+                const isExtraVideo = track.kind === 'video' && alreadyHasVideo;
+                if (isExtraVideo) {
+                    // Ikkinchi video — ekran uzatish. Track'ni TO'XTATMAYMIZ: u
+                    // transceiver'ning receiver'i, `stop()` uni butun ulanishdan
+                    // olib tashlaydi va hech qanday video kelmay qoladi.
+                    if (screenOwnerId === id) {
+                        entry.remoteStream.addTrack(track); // PiP kamera uchun zaxira
+                        attachRemoteScreen(entry, track);
+                    }
+                    refreshAll();
+                    return;
+                }
+
                 entry.remoteStream.addTrack(track);
-                track.onunmute = () => { markHasVideo(id); refreshMediaTiles(); };
-                track.onended = () => {
-                    entry.remoteStream.removeTrack(track);
+                if (track.kind === 'video') {
+                    track.onunmute = () => { markHasVideo(id); refreshMediaTiles(); };
+                    track.onended = () => {
+                        entry.remoteStream.removeTrack(track);
+                        markHasVideo(id);
+                        refreshMediaTiles();
+                    };
                     markHasVideo(id);
-                    refreshMediaTiles();
-                };
-                if (track.kind === 'video') markHasVideo(id);
+                }
             }
 
             upsertUser(id, null);
@@ -473,11 +583,37 @@
             }
         };
 
-        pc.onconnectionstatechange = () => {
-            if (pc.connectionState === 'failed') {
+        // Ulanish tiklash: `failed`/`disconnected` yoki `connecting` da uzoq
+        // qolib ketish (ICE o'zaro almashmagan) — ICE restart va yangi offer.
+        let reconnectTimer = 0;
+        const recover = (delay) => {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(() => {
+                if (pc.connectionState === 'connected' || pc.connectionState === 'closed') return;
+                if (!entry.hasOfferStarted) return;
                 try { pc.restartIce(); } catch (error) { /* ignore */ }
-            }
+                const renew = () => {
+                    if (pc.signalingState === 'stable') negotiate(entry).catch(() => {});
+                    else setTimeout(renew, 250);
+                };
+                renew();
+            }, delay);
         };
+
+        pc.onconnectionstatechange = () => {
+            if (pc.connectionState === 'connected') {
+                clearTimeout(reconnectTimer);
+                return;
+            }
+            if (pc.connectionState === 'failed') recover(300);
+            else if (pc.connectionState === 'disconnected') recover(1500);
+        };
+
+        // `connecting` juda uzoq davom etsa (masalan, faqat bitta tomon offer
+        // yuborgan) — 6 s dan keyin qayta urinamiz.
+        reconnectTimer = setTimeout(() => {
+            if (pc.connectionState === 'connecting' || pc.connectionState === 'new') recover(0);
+        }, 6000);
 
         if (localStream) addLocalTracks(entry);
         return entry;
@@ -516,6 +652,7 @@
         if (!id || id === me.id) return peers.get(id);
         let entry = peers.get(id);
         if (!entry) entry = newPeer(id);
+        if (!entry) return null;
         if (localStream) addLocalTracks(entry);
         if (startNegotiation && !entry.hasOfferStarted) {
             entry.hasOfferStarted = true;
@@ -524,17 +661,47 @@
         return entry;
     }
 
+    // `bundlePolicy: 'max-bundle'` bilan `setLocalDescription()` ba'zi Chromium
+    // versiyalarida "no BUNDLE group" xatosini beradi (implicit offer yaratilganda).
+    // Sabab: transceiver'larga `mid` berilmagan. Biz transceiver'larni O'ZIMIZ
+    // yaratamiz va `mid` shu yerda belgilanadi — shunda BUNDLE guruhi kafolatlangan.
+    function ensureTransceiver(entry, kind) {
+        const pc = entry.pc;
+        const existing = pc.getTransceivers().find((t) => (t.receiver.track || {}).kind === kind
+            || (t.sender.track || {}).kind === kind || t.mid === kind);
+        if (existing) return existing;
+        const transceiver = pc.addTransceiver(kind, { direction: 'sendrecv' });
+        try { transceiver.mid = kind; } catch (error) { /* mid read-only bo'lsa e'tiborsiz */ }
+        return transceiver;
+    }
+
     function addLocalTracks(entry) {
         if (!entry || !localStream) return;
         const pc = entry.pc;
         if (localAudio) {
             const current = entry.senders.audio;
             if (!current || current.track !== localAudio || current.track.readyState === 'ended') {
-                try { entry.senders.audio = pc.addTrack(localAudio, localStream); } catch (error) { /* noop */ }
+                try {
+                    const transceiver = ensureTransceiver(entry, 'audio');
+                    if (typeof transceiver.sender.replaceTrack === 'function') {
+                        transceiver.sender.replaceTrack(localAudio);
+                        entry.senders.audio = transceiver.sender;
+                    } else {
+                        entry.senders.audio = pc.addTrack(localAudio, localStream);
+                    }
+                } catch (error) { /* noop */ }
             }
         }
         if (localVideo && !entry.senders.video && entry.senders.video !== false) {
-            try { entry.senders.video = pc.addTrack(localVideo, localStream); } catch (error) { /* noop */ }
+            try {
+                const transceiver = ensureTransceiver(entry, 'video');
+                if (typeof transceiver.sender.replaceTrack === 'function') {
+                    transceiver.sender.replaceTrack(localVideo);
+                    entry.senders.video = transceiver.sender;
+                } else {
+                    entry.senders.video = pc.addTrack(localVideo, localStream);
+                }
+            } catch (error) { /* noop */ }
         }
     }
 
@@ -544,7 +711,10 @@
         negotiateBusy.add(entry.id);
         try {
             entry.makingOffer = true;
-            await pc.setLocalDescription();
+            // `max-bundle` siyosati bilan `setLocalDescription()` (implicit offer)
+            // Chromium'da "no BUNDLE group" xatosini beradi — shu sababli offer
+            // OCHIQ yaratiladi va keyin o'rnatiladi.
+            await pc.setLocalDescription(await pc.createOffer());
             sendSignal('webrtc-offer', { target_user_id: entry.id, offer: pc.localDescription });
         } finally {
             entry.makingOffer = false;
@@ -557,6 +727,7 @@
         if (!id || id === me.id) return;
         let entry = peers.get(id);
         if (!entry) entry = newPeer(id);
+        if (!entry) return;
         const pc = entry.pc;
 
         if (msg.type === 'webrtc-offer' && msg.offer) {
@@ -574,7 +745,9 @@
             await flushCandidates(id);
             if (!localStream) await startLocalMedia();
             if (localStream) addLocalTracks(entry);
-            await pc.setLocalDescription();
+            // Implicit `setLocalDescription()` o'rniga answer OCHIQ yaratiladi —
+            // Chromium'ning ba'zi versiyalarida bundle/mid noto'g'ri beriladi.
+            await pc.setLocalDescription(await pc.createAnswer());
             sendSignal('webrtc-answer', { target_user_id: id, answer: pc.localDescription });
             return;
         }
@@ -631,29 +804,95 @@
     /* ------------------------------------------------------------------
        LOKAL MEDIA
        ------------------------------------------------------------------ */
+    /* Ruxsat/uskuna muammosi banneri. `sticky` — qayta urinish tugmasi doim
+       ko'rinib turadi; xato sababi matnda yoziladi. */
+    function showMediaBanner(text, sticky) {
+        if (!ui.mediaBanner) return;
+        if (ui.mediaBannerText && text) ui.mediaBannerText.textContent = text;
+        ui.mediaBanner.hidden = false;
+        if (!sticky) mediaBlocked = false;
+    }
+
+    function hideMediaBanner() {
+        if (!ui.mediaBanner) return;
+        ui.mediaBanner.hidden = true;
+        mediaBlocked = false;
+    }
+
+    // getUserMedia xatolarini o'zbekcha, aniq tushuntirish bilan qaytaradi
+    function mediaErrorText(error) {
+        const name = (error && error.name) || '';
+        if (name === 'NotAllowedError' || name === 'SecurityError') {
+            return 'Kamera va mikrofon ruxsati berilmadi. Manzil satridagi qulf belgisini bosib, ruxsat bering va qayta urinib ko‘ring.';
+        }
+        if (name === 'NotFoundError' || name === 'DevicesNotFoundError' || name === 'OverconstrainedError') {
+            return 'Kamera yoki mikrofon topilmadi. Qurilmani ulab, qayta urinib ko‘ring.';
+        }
+        if (name === 'NotReadableError' || name === 'TrackStartError') {
+            return 'Kamera boshqa dasturda band. Uni yopib, qayta urinib ko‘ring.';
+        }
+        return 'Kamera/mikrofonni ochib bo‘lmadi: ' + (error && error.message ? error.message : 'noma’lum xato');
+    }
+
+
+
     async function startLocalMedia() {
         if (localStream) return localStream;
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            toast('Brauzer kamera/mikrofonni qo‘llab-quvvatlamaydi.', 'error');
-            return null;
-        }
+        // Bir vaqtda bir necha marta chaqirilsa (init + webrtc-offer + tugma)
+        // brauzer bir xil so'rovni takroran ko'rsatmaydi: bitta va'da ulashamiz.
+        if (mediaRequest) return mediaRequest;
 
-        const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
-        try {
-            localStream = await navigator.mediaDevices.getUserMedia({
-                video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
-                audio: audioConstraints,
-            });
-        } catch (videoError) {
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: audioConstraints });
-                camOn = false;
-                toast('Kamera mavjud emas — faqat mikrofon bilan davom etamiz.', 'warn');
-            } catch (audioError) {
-                console.error('[live-room] media denied', audioError);
-                toast('Kamera va mikrofon ruxsati berilmadi.', 'error');
+        mediaRequest = (async () => {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showMediaBanner('Brauzer kamera/mikrofonni qo‘llab-quvvatlamaydi yoki sahifa HTTPS orqali ochilmagan (localhost bundan mustasno).', true);
+                toast('Brauzer kamera/mikrofonni qo‘llab-quvvatlamaydi.', 'error');
                 return null;
             }
+
+            const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+            const videoConstraints = { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' };
+            let stream = null;
+
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: audioConstraints });
+            } catch (videoError) {
+                if (!stream && videoError && videoError.name === 'TypeError') {
+                    // Ba'zi eski brauzerlar cheklovlar obyektini tushunmaydi.
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: audioConstraints });
+                    } catch (error) { stream = null; }
+                }
+                if (!stream) {
+                    // Kamerasiz ham darsga kirish muhim: mikrofon bilan davom etamiz
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: audioConstraints });
+                        camOn = false;
+                        toast('Kamera ochilmadi — faqat mikrofon bilan davom etamiz.', 'warn');
+                        hideMediaBanner();
+                    } catch (audioError) {
+                        console.error('[live-room] media denied', audioError);
+                        mediaBlocked = true;
+                        showMediaBanner(mediaErrorText(audioError), true);
+                        toast('Kamera va mikrofon ruxsati berilmadi.', 'error');
+                        return null;
+                    }
+                }
+            }
+
+            localStream = stream;
+            return stream;
+        })();
+
+        try {
+            await mediaRequest;
+        } finally {
+            mediaRequest = null;
+        }
+
+        if (!localStream) {
+            updateMicButton();
+            updateCamButton();
+            return null;
         }
 
         localAudio = localStream.getAudioTracks()[0] || null;
@@ -687,20 +926,28 @@
         if (localAudio) localAudio.enabled = micOn && !mutedByHost;
     }
 
-    function toggleMic() {
+    async function toggleMic() {
         if (mutedByHost) {
             toast('Mikrofon ustoz tomonidan o‘chirilgan.', 'warn');
             return;
         }
         micOn = !micOn;
+
+        // Ruxsat hali berilmagan bo'lsa — foydalanuvchi aynan shu tugmani bosgan
+        // paytda so'raymiz (brauzer "foydalanuvchi harakati" talab qiladi).
+        if (micOn && !localAudio) {
+            await startLocalMedia();
+        }
+
         applyMicState();
         sendMicState();
 
         const own = upsertUser(me.id, null);
-        if (own) own.micMuted = !micOn;
+        if (own) own.micMuted = !micOn || !localAudio;
 
         if (!localAudio) {
-            startLocalMedia().catch(() => {});
+            micOn = false;
+            own.micMuted = true;
         } else if (micOn) {
             startMeter(me.id, localStream);
         } else {
@@ -723,10 +970,13 @@
         ui.micBtn.title = on ? 'Mikrofonni o‘chirish' : 'Mikrofonni yoqish';
     }
 
-    function toggleCamera() {
+    async function toggleCamera() {
         if (!localVideo) {
-            toast('Kamera topilmadi.', 'warn');
-            return;
+            await startLocalMedia();
+            if (!localVideo) {
+                toast('Kamera topilmadi yoki ruxsat berilmadi.', 'warn');
+                return;
+            }
         }
         camOn = !camOn;
         localVideo.enabled = camOn;
@@ -1162,12 +1412,25 @@
         toolbar.appendChild(maxBtn);
         tile.appendChild(toolbar);
 
-        const hasVideo = hasLiveVideo(user.id) && !user.noCam;
-        if (hasVideo) {
+        // Video faqat HAQIQIY kadr kelgach ko'rsatiladi. Ilgari oqim ulangan
+        // zahoti `video` ochilardi: o'quvchi hali kamerani yoqmagan bo'lsa,
+        // ekranda faqat QORA to'rtburchak ko'rinardi.
+        const audioOnly = Boolean(stream) && stream.getVideoTracks().length === 0;
+        if (stream && !user.noCam && !audioOnly) {
             video.srcObject = stream;
-            video.classList.remove('is-hidden');
-            placeholder.hidden = true;
-            video.play().catch(() => {});
+            video.classList.add('is-hidden');
+            placeholder.hidden = false;
+
+            const reveal = () => {
+                if (!video.srcObject) return;
+                video.classList.remove('is-hidden');
+                placeholder.hidden = true;
+            };
+            video.addEventListener('playing', reveal, { once: true });
+            video.addEventListener('loadeddata', () => { if (video.videoWidth) reveal(); }, { once: true });
+            video.play().then(() => {
+                if (video.readyState >= 2 && video.videoWidth) reveal();
+            }).catch(() => { /* autoplay bloklandi — placeholder qoladi */ });
         } else {
             video.classList.add('is-hidden');
             placeholder.hidden = false;
@@ -1283,13 +1546,22 @@
         ui.pip.classList.toggle('is-maximized', maximizedId === host.id);
 
         const stream = streamFor(host.id);
-        const hasVideo = Boolean(stream) && hasLiveVideo(host.id) && !host.noCam;
+        const hasVideo = Boolean(stream) && stream.getVideoTracks().length > 0 && !host.noCam;
         const muted = Boolean(host.micMuted);
 
         if (ui.pipVideo) {
             if (hasVideo) {
-                if (ui.pipVideo.srcObject !== stream) ui.pipVideo.srcObject = stream;
-                ui.pipVideo.classList.remove('is-hidden');
+                if (ui.pipVideo.srcObject !== stream) {
+                    ui.pipVideo.srcObject = stream;
+                    ui.pipVideo.classList.add('is-hidden');
+                    const reveal = () => {
+                        if (!ui.pipVideo.srcObject) return;
+                        ui.pipVideo.classList.remove('is-hidden');
+                        if (ui.pipPlaceholder) ui.pipPlaceholder.hidden = true;
+                    };
+                    ui.pipVideo.addEventListener('playing', reveal, { once: true });
+                }
+                if (!ui.pipVideo.paused && ui.pipVideo.readyState >= 2) ui.pipVideo.classList.remove('is-hidden');
                 // O'z oynasida oynani ikki marta eshitmaslik uchun muted
                 ui.pipVideo.muted = true;
                 ui.pipVideo.play().catch(() => {});
@@ -1308,7 +1580,10 @@
                 ui.pipPhoto.hidden = true;
             }
         }
-        if (ui.pipPlaceholder) ui.pipPlaceholder.hidden = hasVideo || hasPhoto;
+        // Placeholder faqat video HAQIQATAN ko'rinib turganda yashiriladi,
+        // aks holda PiP ichi qora oyna bo'lib qoladi.
+        const videoVisible = Boolean(ui.pipVideo) && !ui.pipVideo.classList.contains('is-hidden');
+        if (ui.pipPlaceholder) ui.pipPlaceholder.hidden = videoVisible || hasPhoto;
 
         paintMeter(host.id, muted ? 0 : (host.level || 0));
     }
@@ -1321,6 +1596,24 @@
         return peers.get(screenOwnerId) || null;
     }
 
+    // Masofaviy ekran track'i kelganda katta sahnani yangilaymiz
+    function attachRemoteScreen(entry, track) {
+        if (entry.remoteScreenTrack === track) {
+            renderScreen();
+            return;
+        }
+        entry.remoteScreenTrack = track;
+        track.onmute = renderScreen;
+        track.onunmute = renderScreen;
+        track.onended = () => {
+            if (entry.remoteScreenTrack === track) entry.remoteScreenTrack = null;
+            renderScreen();
+        };
+        // Track un-mute bo'lishi (kadrlar kela boshlashi) uchun bir necha
+        // marta yangilaymiz — aks holda "Ekran yuklanmoqda…" qotib qoladi.
+        [0, 400, 1200].forEach((delay) => setTimeout(renderScreen, delay));
+    }
+
     function renderScreen() {
         if (!ui.stage) return;
         const active = screenOwnerId !== null || Boolean(screenStream);
@@ -1331,6 +1624,7 @@
         }
 
         if (ui.screenChip) ui.screenChip.hidden = !active;
+        if (ui.shareBtn) ui.shareBtn.hidden = !isTeacher;
         if (active && ui.screenChipText) {
             const owner = users.get(screenOwnerId);
             ui.screenChipText.textContent = owner
@@ -1355,20 +1649,27 @@
         if (screenOwnerId === me.id && screenStream) {
             stream = screenStream;
         } else {
-            // Faqat ustozning ekran oqimi katta maydonda ko'rsatiladi
+            // Ekran uzatuvchining ekran track'i. Track hali kelmagan bo'lsa
+            // (renegotiation davom etmoqda) — FALLBACK QILMAYMIZ: ustozning
+            // kamerasi butun ekranga (qora katta oyna) cho'zilib ketmasin.
             const entry = remoteScreenEntry();
             if (entry && entry.remoteScreenTrack && entry.remoteScreenTrack.readyState !== 'ended') {
                 stream = new MediaStream([entry.remoteScreenTrack]);
-            } else if (entry && entry.remoteStream.getVideoTracks().length) {
-                stream = entry.remoteStream;
             }
         }
 
         if (ui.screenVideo && stream) {
             if (ui.screenVideo.srcObject !== stream) ui.screenVideo.srcObject = stream;
-            ui.screenVideo.play().catch(() => {});
+            // Rejim almashganda element qayta ko'rinsa, ba'zi brauzerlar
+            // oxirgi kadrni ko'rsatmaydi — oqimni qayta ishga tushiramiz.
+            if (ui.screenVideo.paused) ui.screenVideo.play().catch(() => {});
+        } else if (ui.screenVideo && ui.screenVideo.srcObject) {
+            ui.screenVideo.srcObject = null;
         }
-        if (ui.screenEmpty) ui.screenEmpty.hidden = Boolean(stream);
+        if (ui.screenEmpty) {
+            ui.screenEmpty.hidden = Boolean(stream);
+            ui.screenEmpty.textContent = stream ? '' : 'Ekran yuklanmoqda…';
+        }
 
         if (isTeacher && ui.shareText) {
             ui.shareText.textContent = screenStream ? 'Uzatishni to‘xtatish' : 'Ekranni uzatish';
@@ -1404,16 +1705,33 @@
         screenOwnerId = me.id;
         track.onended = () => { stopShareScreen(); };
 
-        // Ekran trackini alohida "screen" sender sifatida qo'shamiz
+        // Ekran trackini alohida "screen" transceiver sifatida qo'shamiz.
+        // `addTrack` o'rniga aniq transceiver ishlatamiz: shunda `mid` darhol
+        // belgilanadi va `max-bundle`/renegotiation xatosi bo'lmaydi.
         peers.forEach((entry) => {
             if (entry.senders.screen) {
                 try { entry.senders.screen.replaceTrack(track); } catch (error) { /* noop */ }
                 return;
             }
             try {
-                entry.senders.screen = entry.pc.addTrack(track, display);
-                // Yangi track — yangi offer kerak
-                if (entry.hasOfferStarted) negotiate(entry).catch(() => {});
+                const transceiver = entry.pc.addTransceiver(track, {
+                    direction: 'sendonly',
+                    streams: [display],
+                });
+                entry.senders.screen = transceiver.sender;
+                // Yangi track — yangi offer kerak. Renegotiation faqat eski
+                // muzokara tugagach boshlanadi (aks holda pc `have-local-offer`
+                // holatida qolib, ulanish `new` ga qaytadi).
+                if (entry.hasOfferStarted) {
+                    const startWhenStable = () => {
+                        if (entry.pc.signalingState === 'stable') {
+                            negotiate(entry).catch(() => {});
+                        } else {
+                            setTimeout(startWhenStable, 150);
+                        }
+                    };
+                    setTimeout(startWhenStable, 0);
+                }
             } catch (error) { /* noop */ }
         });
 
@@ -1445,7 +1763,15 @@
         sendSignal('screen-share-stop', { screen_owner_id: me.id });
         // Qayta renegotiation: ekran track'i olib tashlangach ulanish barqaror bo'lsin
         peers.forEach((entry) => {
-            if (entry.hasOfferStarted) negotiate(entry).catch(() => {});
+            if (!entry.hasOfferStarted) return;
+            const startWhenStable = () => {
+                if (entry.pc.signalingState === 'stable') {
+                    negotiate(entry).catch(() => {});
+                } else {
+                    setTimeout(startWhenStable, 150);
+                }
+            };
+            setTimeout(startWhenStable, 0);
         });
         refreshAll();
         addChat('Tizim', 'Ekran uzatish to‘xtatildi.', 'system');
@@ -1455,6 +1781,10 @@
         screenOwnerId = Number(msg.screen_owner_id || msg.sender_id);
         if (msg.message) addChat('Tizim', msg.message, 'system');
         refreshAll();
+        // Ekran track'i kelishi bir necha soniya olishi mumkin — shu vaqt
+        // "Ekran yuklanmoqda…" o'rniga ustoz kamerasi to'liq ekranga
+        // cho'zilib qolmasligi uchun render'ni keyin yana chaqiramiz.
+        [800, 2000, 4000].forEach((delay) => setTimeout(renderScreen, delay));
     }
 
     function onScreenStop(msg) {
@@ -1576,6 +1906,22 @@
         if (ui.micBtn) ui.micBtn.addEventListener('click', toggleMic);
         if (ui.camBtn) ui.camBtn.addEventListener('click', toggleCamera);
         if (ui.shareBtn) ui.shareBtn.addEventListener('click', toggleShareScreen);
+
+        if (ui.mediaRetryBtn) {
+            ui.mediaRetryBtn.addEventListener('click', async () => {
+                ui.mediaRetryBtn.disabled = true;
+                try {
+                    micOn = true;
+                    camOn = true;
+                    await startLocalMedia();
+                    if (localStream) hideMediaBanner();
+                    updateMicButton();
+                    updateCamButton();
+                } finally {
+                    ui.mediaRetryBtn.disabled = false;
+                }
+            });
+        }
 
         if (ui.muteAllBtn) {
             ui.muteAllBtn.addEventListener('click', () => {
@@ -1708,10 +2054,21 @@
 
         connect();
 
+        // Kamera/mikrofon ijozatini sahifa ochilishi bilan so'raymiz. Ruxsat
+        // berilmasa banner chiqadi va "Ruxsat berish" tugmasi bilan qayta
+        // urinish mumkin (brauzerlar ruxsatsiz getUM'ni jim bloklaydi).
         try {
             await startLocalMedia();
         } catch (error) {
             console.warn('[live-room] local media', error);
+        }
+        if (!localStream) {
+            showMediaBanner(
+                window.isSecureContext === false
+                    ? 'Kamera/mikrofon faqat HTTPS (yoki localhost) da ishlaydi.'
+                    : 'Kamera va mikrofon ruxsati berilmagan — "Ruxsat berish"ni bosing.',
+                true,
+            );
         }
 
         // Ustoz ham pudratchi, ham mijoz: 1.5 s ichida hech kim kirmasa,

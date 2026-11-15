@@ -81,6 +81,9 @@ def _group_name(lesson_id):
     return f'live_lesson_{lesson_id}'
 
 
+
+
+
 class LiveLessonConsumer(AsyncWebsocketConsumer):
     """Dars xonasining signaling kanali.
 
@@ -116,6 +119,8 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
         self.joined = False
         self._last_speaking = False
         self._last_speaking_sent = 0.0
+        # Sinf darajasidagi atribut emas — har bir ulanish o'z qulfi bilan
+        # boshlanadi (event loop'ga bog'langan qulf qayta ishlatilmasin).
         self._state_lock = None
 
         self.lesson = await self.get_lesson(self.lesson_id)
@@ -158,9 +163,14 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
         self.lesson.save(update_fields=['is_live', 'started_at'])
 
     # -------------------------------------------------------- umumiy holat
-    # Holat channel layer'da bitta "xona kanali" sifatida saqlanadi.
-    # InMemoryChannelLayer uchun bu protsess xotirasi, Redis uchun esa umumiy
-    # kalit — shuning uchun barcha workerlar bir xil ro'yxatni ko'radi.
+    # Xona holati (qatnashchilar, ekran egasi, mute) IKKI backend'da yashaydi:
+    #   • InMemoryChannelLayer (bitta protsess)  -> layer obyektidagi dict
+    #   • RedisChannelLayer  (ko'p worker)       -> Redis kalit (JSON)
+    # Ilgari holat "state kanali" navbatiga xabar sifatida yozilardi. Bu mo'rt:
+    # navbat xabari bir marta o'qiladi, `receive()` uni yo'q qiladi va
+    # guruh xabarlari bilan aralashib ketadi — natijada ikkinchi qatnashchi
+    # ro'yxatni ko'rmaydi, WebRTC offer/answer boshlanmaydi (QORA OYNA).
+    # Endi holat xabar emas, oddiy qiymat sifatida saqlanadi.
 
     def _new_state(self):
         return {
@@ -190,49 +200,31 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
         layer = self._layer()
         return await type(layer).receive(layer, channel)
 
-    async def receive_state(self):
-        """Xona holati yozilgan "state" kanalidan o'qish (bloklamasdan).
+    @staticmethod
+    def _pack(state):
+        """Holatni JSON-matnga aylantiradi (Redis bilan mos format)."""
+        state['updated_at'] = time.time()
+        return json.dumps(state, ensure_ascii=False, default=str)
 
-        Kanal bo'sh bo'lsa `None` qaytaradi: InMemory layer'da `receive_nothing`
-        buni bir zumda aniqlaydi, Redis'da esa `receive(timeout=0)` ishlatiladi.
-        """
-        layer = self._layer()
-        if self.has_state(layer):
-            return await self._read_channel(self.state_key)
-        # Redis: bo'sh kanalni hech qachon yaratmaymiz — `receive_nothing`
-        # kanal mavjudligini tekshiradi (channels-redis 4.x).
-        check = getattr(layer, 'receive_nothing', None)
-        if check is not None and not await check():
-            return await self._read_channel(self.state_key)
-        return None
-
-    def channel_queue(self, layer):
-        """InMemoryChannelLayer (channels 4.x) kanalining navbati."""
-        channels = getattr(layer, 'channels', None)
-        if not isinstance(channels, dict):
+    @staticmethod
+    def _unpack(raw):
+        """JSON-matndan holatni tiklaydi. ID (int) kalitlarini qaytaradi."""
+        if isinstance(raw, dict):
+            state = raw  # eski format / boshqa backend
+        elif isinstance(raw, str) and raw:
+            try:
+                state = json.loads(raw)
+            except (TypeError, ValueError):
+                return None
+        else:
             return None
-        queue = channels.get(self.state_key)
-        return queue if queue is not None else None
+        if not isinstance(state, dict):
+            return None
 
-    def has_state(self, layer):
-        """InMemory layer uchun holat mavjudligini bloklamasdan tekshirish."""
-        if not hasattr(layer, 'channels'):
-            return False
-        queue = self.channel_queue(layer)
-        return bool(queue is not None and queue.qsize() > 0)
-
-    async def base_receive(self, channel, timeout=None):
-        """Kanal layer'ning `receive()` metodi (consumer.receive bilan to'qnashmaydi)."""
-        return await self._read_channel(channel)
-
-    async def load_state(self):
-        state = await self.receive_state()
-        if not state or state.get('_deleted'):
-            state = self._new_state()
-        # Channel layer xabarlari JSON orqali (Redis) o'tishi mumkin —
-        # kalitlar string bo'lib qolmasligi uchun ID turlarini tiklaymiz.
         participants = {}
         for key, entry in (state.get('participants') or {}).items():
+            if not isinstance(entry, dict):
+                continue
             try:
                 uid = int(entry.get('id', key))
             except (TypeError, ValueError):
@@ -245,9 +237,55 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
         state.setdefault('chat', [])
         return state
 
+    def _is_memory_layer(self, layer=None):
+        """InMemory layer'ni `new_channel` mavjudligi bilan aniqlaymiz
+        (`channels` dict instance atributi — klassda ko'rinmaydi)."""
+        return hasattr(layer or self._layer(), 'new_channel')
+
+    def state_store(self):
+        """Bitta protsess uchun holat saqlagichi (layer obyektiga bog'langan)."""
+        layer = self._layer()
+        store = getattr(layer, '_room_state_store', None)
+        if store is None:
+            store = {}
+            setattr(layer, '_room_state_store', store)
+        return store
+
+    async def receive_state(self):
+        """Joriy xona holatini (JSON matn) qaytaradi. Bo'sh bo'lsa `None`."""
+        layer = self._layer()
+        if self._is_memory_layer(layer):
+            return self.state_store().get(self.state_key)
+        try:
+            raw = await layer.get(self.state_key)
+        except Exception:  # noqa: BLE001 — Redis ulanmagan bo'lsa
+            return None
+        if raw in (None, False):
+            return None
+        return raw.decode() if isinstance(raw, bytes) else raw
+
+    async def load_state(self):
+        state = self._unpack(await self.receive_state()) or self._new_state()
+        return state
+
     async def save_state(self, state):
-        state['updated_at'] = time.time()
-        await self.channel_layer.send(self.state_key, state)
+        payload = self._pack(state)
+        layer = self._layer()
+        if self._is_memory_layer(layer):
+            self.state_store()[self.state_key] = payload
+            return
+        await layer.set(self.state_key, payload, timeout=6 * 3600)
+
+    async def clear_state(self):
+        """Xona bo'shaganda holatni o'chirish (keyingi dars toza boshlanadi)."""
+        layer = self._layer()
+        if self._is_memory_layer(layer):
+            self.state_store().pop(self.state_key, None)
+            return
+        try:
+            await layer.delete(self.state_key)
+        except Exception:  # noqa: BLE001
+            pass
 
     @asynccontextmanager
     async def state_lock(self):
@@ -256,6 +294,9 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
         `self._state_lock` — protsess ichidagi qulf (InMemory layer ishlatilganda
         yetarli). Redis mavjud bo'lsa, kanal layer'ning o'zidagi navbat
         (state kanali) ham mutatsiyalarni ketma-ket qabul qiladi.
+        Qulf joriy event loop'ga bog'lanadi — uklass atributida qolib ketmasligi
+        uchun har bir ulanish uchun yangidan yaratamiz (aks holda brauzer qayta
+        ulanganda eski loop'dagi qulf osilib qoladi).
         """
         if self._state_lock is None:
             self._state_lock = asyncio.Lock()
@@ -269,13 +310,13 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
             await self.save_state(state)
         return state, result
 
-    def entry(self, mic_muted=False, speaking=False):
+    def entry(self, mic_muted=False, speaking=False, no_cam=False):
         return {
             'id': self.user_id,
             'name': self.user_name,
             'role': self.user_role,
             'mic_muted': bool(mic_muted),
-            'no_cam': False,
+            'no_cam': bool(no_cam),
             'speaking': bool(speaking),
         }
 
@@ -292,7 +333,8 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
             participants = state['participants']
             existing = participants.get(self.user_id)
             mic_muted = bool(existing.get('mic_muted')) if existing else False
-            participants[self.user_id] = self.entry(mic_muted=mic_muted)
+            no_cam = bool(existing.get('no_cam')) if existing else False
+            participants[self.user_id] = self.entry(mic_muted=mic_muted, no_cam=no_cam)
             return state.get('screen_owner_id')
 
         state, _ = await self.update_state(mutate)
@@ -382,7 +424,7 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
 
         if not still_roomy:
             # Xona bo'shadi — holat kanalini bo'shatamiz (keyingi dars toza boshlanadi)
-            await self.base_receive(self.state_key)
+            await self.clear_state()
 
         # Ustoz chiqsa — dars yakunlangan deb belgilanadi
         if self.is_teacher and getattr(self, 'lesson', None) and self.lesson.is_live:
@@ -581,14 +623,17 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
             entry[field] = value
             return entry
 
-        await self.update_state(mutate)
+        state, _ = await self.update_state(mutate)
 
         # Ustoz o'z mikrofonini o'chirsa "mute all" holati ham bekor bo'ladi
         if self.is_teacher and field == 'mic_muted' and not value:
             await self.set_global_flag('muted_all', False)
 
+        # Yangilangan holatni guruhga darhol yetkazamiz (masalan mikrofon
+        # o'chirilganda yashil indikator barchada to'xtasin).
         if broadcast:
             await self.broadcast(broadcast, exclude_sender=True)
+        return state
 
     async def set_global_flag(self, key, value):
         def mutate(state):
@@ -641,7 +686,7 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
             entry['mic_muted'] = muted
             return entry.get('name') or 'Qatnashchi'
 
-        _, target_name = await self.update_state(mutate)
+        _state, target_name = await self.update_state(mutate)
 
         message = (
             ('Ustoz hamma mikrofonni o\'chirdi.' if muted else 'Ustoz hamma mikrofonni yoqdi.')
@@ -676,16 +721,7 @@ class LiveLessonConsumer(AsyncWebsocketConsumer):
             'message': 'Ustoz sizni darsdan chiqardi.',
         }, target_user_id=target_user_id, exclude_sender=False)
 
-        # Guruhga "kick" xabarini yuborish — ustozning ro'yxati darhol yangilanadi
-        await self.broadcast({
-            'type': 'presence',
-            'sender': self.user_name,
-            'sender_id': target_user_id,
-            'role': 'student',
-            'left': True,
-            'message': 'Qatnashchi ustoz tomonidan darsdan chiqarildi.',
-        }, exclude_sender=True)
-
+        # Guruhga "left" xabari — ustozning ro'yxati darhol yangilanadi
         await self.broadcast({
             'type': 'presence',
             'sender': self.user_name,

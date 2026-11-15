@@ -1,0 +1,8 @@
+﻿{
+ "max-bundle-addTrack": "ok bundle=true",
+ "max-bundle-transceiver": "ok bundle=true",
+ "balanced-addTrack": "ok bundle=true",
+ "balanced-transceiver": "ok bundle=true",
+ "max-compat-addTrack": "ok bundle=true",
+ "max-compat-transceiver": "ok bundle=true"
+}

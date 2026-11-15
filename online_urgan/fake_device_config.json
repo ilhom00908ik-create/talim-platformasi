@@ -1,0 +1,8 @@
+{
+  "fake_video_capture_device": {
+    "width": 1280,
+    "height": 720,
+    "frame_rate": 15,
+    "video_file": "fake_device_pattern_y4m"
+  }
+}
