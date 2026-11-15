@@ -1,5 +1,6 @@
 import random
 import re
+from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
@@ -10,6 +11,7 @@ from django.core.mail import send_mail
 from django.db.models import Avg, Count, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from online_urgat.models import Course, LiveLesson, TeacherApplication, Test, TestAttempt
@@ -115,6 +117,53 @@ def _get_user_stats(user):
     return stats
 
 
+
+
+
+def _get_platform_stats():
+    """Bosh sahifadagi "Bugungi natija" bloki uchun real (bazaga asoslangan) ko'rsatkichlar.
+
+    Barcha foizlar TestAttempt yozuvlaridan hisoblanadi — statik raqamlar yo'q.
+    Qatnashuv nisbati (activity_rate) bugun test topshirgan o'quvchilarni umumiy
+    faol o'quvchilar soniga bo'lish orqali olinadi.
+    """
+    today = timezone.localdate()
+    yesterday = today - timedelta(days=1)
+
+    today_attempts = TestAttempt.objects.filter(submitted_at__date=today)
+    today_students = today_attempts.values('student_id').distinct().count()
+
+    today_avg = today_attempts.aggregate(avg=Avg('percentage'))['avg'] or 0
+    yesterday_avg = (
+        TestAttempt.objects.filter(submitted_at__date=yesterday).aggregate(avg=Avg('percentage'))['avg'] or 0
+    )
+    # Foiz o'sishi: bugungi o'rtacha natija kechagidan necha foizga o'zgargani
+    if yesterday_avg:
+        result_growth = round((float(today_avg) - float(yesterday_avg)) / float(yesterday_avg) * 100)
+    else:
+        result_growth = round(float(today_avg))
+
+    total_students = (
+        TestAttempt.objects.values('student_id').distinct().count()
+        or User.objects.filter(is_staff=False).count()
+    )
+    activity_rate = round(today_students / total_students * 100) if total_students else 0
+
+    overall_avg = TestAttempt.objects.aggregate(avg=Avg('percentage'))['avg']
+    if overall_avg is None:
+        overall_avg = today_avg
+
+    return {
+        'today_students': today_students,
+        'today_attempts': today_attempts.count(),
+        'today_avg': round(float(today_avg), 1),
+        'result_growth': result_growth,
+        'activity_rate': min(100, max(0, activity_rate)),
+        'overall_avg': round(float(overall_avg or 0), 1),
+        'total_students': total_students,
+    }
+
+
 def home_view(request):
     tests = (
         Test.objects
@@ -140,6 +189,8 @@ def home_view(request):
             .order_by('-submitted_at')[:5]
         )
 
+    platform_stats = _get_platform_stats()
+
     stats.update({
         'total_tests': tests.count(),
         'total_live_lessons': live_lessons.count(),
@@ -152,6 +203,7 @@ def home_view(request):
         'live_lessons': live_lessons,
         'attempts': attempts,
         'stats': stats,
+        'platform_stats': platform_stats,
     })
 
 
@@ -352,10 +404,20 @@ def profile_view(request):
     profile = _user_profile(request.user)
     application = get_teacher_application(request.user)
 
+    # Shablon uchun tayyor qiymatlar (bo'sh qiymatlarda zanjirli default
+    # ishlashi uchun qiymatni Python tomonida hisoblaymiz).
+    contact = (profile.phone_or_email or request.user.email or 'Telefon/Email mavjud emas') if profile else (
+        request.user.email or 'Telefon/Email mavjud emas'
+    )
+
     return render(request, 'accounts/profile.html', {
         'profile': profile,
         'user': request.user,
         'application': application,
+        'contact': contact,
+        'card_user': {
+            'display_name': request.user.get_full_name() or request.user.username,
+        },
         'is_teacher': teacher_allowed(request.user),
         'teacher_status': teacher_application_status(request.user),
     })

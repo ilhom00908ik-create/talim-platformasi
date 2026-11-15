@@ -28,14 +28,11 @@
                 <h1 class="mt-3 text-3xl font-black">Arizangiz ko'rib chiqilmoqda</h1>
             </div>
 
-            <div class="rounded-2xl border border-yellow-400/30 bg-yellow-500/10 p-5 text-sm text-yellow-100">
-                {% if application %}
+            <div class="rounded-2xl border border-yellow-400/30 bg-yellow-500/10 p-5 text-sm text-yellow-100">{% if application %}
                     <p class="font-medium">Salom, {{ request.user.get_full_name|default:request.user.username }}.</p>
-                    <p class="mt-2">O'qituvchi arizangiz admin tomonidan tekshirilmoqda. Iltimos, tasdiqlanishini kuting.</p>
-                {% else %}
+                    <p class="mt-2">O'qituvchi arizangiz admin tomonidan tekshirilmoqda. Iltimos, tasdiqlanishini kuting.</p>{% else %}
                     <p class="font-medium">Ariza topshirilmagan.</p>
-                    <p class="mt-2">O'qituvchi sifatida ariza yuborish uchun o'qituvchi kabinetiga o'ting.</p>
-                {% endif %}
+                    <p class="mt-2">O'qituvchi sifatida ariza yuborish uchun o'qituvchi kabinetiga o'ting.</p>{% endif %}
             </div>
 
             <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">

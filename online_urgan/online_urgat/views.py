@@ -654,13 +654,18 @@ def live_room_context(request, lesson):
     """live_join.html (live_room.html) uchun shablon konteksti."""
     user = request.user
     is_teacher = bool(user.is_authenticated and user.pk == lesson.teacher_id)
+    teacher_name = lesson.teacher.get_full_name() or lesson.teacher.username
+    teacher_application = getattr(lesson.teacher, 'teacherapplication', None)
+    teacher_photo = teacher_application.photo.url if (teacher_application is not None and teacher_application.photo) else ''
     return {
         'lesson': lesson,
         'is_live': bool(lesson.is_live),
         'is_teacher': is_teacher,
         'display_name': user.get_full_name() or user.username,
         'display_initials': (user.get_full_name() or user.username or '?')[:1].upper(),
-        'teacher_name': lesson.teacher.get_full_name() or lesson.teacher.username,
+        'teacher_name': teacher_name,
+        'teacher_initial': (teacher_name or '?')[:1].upper(),
+        'teacher_photo': teacher_photo,
         'live_room_config': build_live_room_config(request, lesson),
     }
 
@@ -670,6 +675,10 @@ def build_live_room_config(request, lesson):
     user = request.user
     is_teacher = bool(user.is_authenticated and user.pk == lesson.teacher_id)
     display_name = user.get_full_name() or user.username
+    teacher_application = getattr(lesson.teacher, 'teacherapplication', None)
+    teacher_photo = ''
+    if teacher_application is not None and teacher_application.photo:
+        teacher_photo = teacher_application.photo.url
 
     return json.dumps({
         'lessonId': lesson.id,
@@ -679,6 +688,7 @@ def build_live_room_config(request, lesson):
         'role': 'teacher' if is_teacher else 'student',
         'teacherId': lesson.teacher_id,
         'teacherName': lesson.teacher.get_full_name() or lesson.teacher.username,
+        'teacherPhoto': teacher_photo,
         'isLive': bool(lesson.is_live),
         'isTeacher': is_teacher,
         'canControlMic': is_teacher,

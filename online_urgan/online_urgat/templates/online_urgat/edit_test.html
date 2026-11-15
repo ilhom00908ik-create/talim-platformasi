@@ -17,47 +17,34 @@
             <a href="{% url 'online_urgat:teacher_dashboard' %}" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-white/10">Kabinetga qaytish</a>
         </div>
 
-        <form method="post" enctype="multipart/form-data" class="space-y-5">
-            {% csrf_token %}
+        <form method="post" enctype="multipart/form-data" class="space-y-5">{% csrf_token %}
             <div>
-                <label class="mb-2 block text-sm font-medium text-slate-200">Test nomi</label>
-                {{ form.title }}
+                <label class="mb-2 block text-sm font-medium text-slate-200">Test nomi</label>{{ form.title }}
             </div>
             <div>
-                <label class="mb-2 block text-sm font-medium text-slate-200">Fan</label>
-                {{ form.subject }}
+                <label class="mb-2 block text-sm font-medium text-slate-200">Fan</label>{{ form.subject }}
             </div>
             <div>
-                <label class="mb-2 block text-sm font-medium text-slate-200">Test rejimi</label>
-                {{ form.mode }}
+                <label class="mb-2 block text-sm font-medium text-slate-200">Test rejimi</label>{{ form.mode }}
             </div>
             <div>
-                <label class="mb-2 block text-sm font-medium text-slate-200">Umumiy PDF yoki rasm (umumiy rejim uchun)</label>
-                {{ form.shared_file }}
-                {% if test.display_file_url %}
-                    <a href="{{ test.display_file_url }}" target="_blank" rel="noopener" class="mt-2 inline-flex text-xs font-semibold text-cyan-300 hover:underline">Joriy faylni ko'rish</a>
-                {% endif %}
+                <label class="mb-2 block text-sm font-medium text-slate-200">Umumiy PDF yoki rasm (umumiy rejim uchun)</label>{{ form.shared_file }}{% if test.display_file_url %}
+                    <a href="{{ test.display_file_url }}" target="_blank" rel="noopener" class="mt-2 inline-flex text-xs font-semibold text-cyan-300 hover:underline">Joriy faylni ko'rish</a>{% endif %}
             </div>
             <div class="grid gap-4 md:grid-cols-2">
                 <div>
-                    <label class="mb-2 block text-sm font-medium text-slate-200">Test rasm</label>
-                    {{ form.cover_image }}
+                    <label class="mb-2 block text-sm font-medium text-slate-200">Test rasm</label>{{ form.cover_image }}
                 </div>
                 <div>
-                    <label class="mb-2 block text-sm font-medium text-slate-200">Test PDF</label>
-                    {{ form.resource_pdf }}
+                    <label class="mb-2 block text-sm font-medium text-slate-200">Test PDF</label>{{ form.resource_pdf }}
                 </div>
             </div>
-            <div class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
-                {{ form.is_published }}
+            <div class="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3">{{ form.is_published }}
                 <label for="id_is_published" class="text-sm text-slate-200">Test ommaga ko'rinsin</label>
             </div>
-
-            {% if form.errors %}
-                <div class="rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">
-                    {{ form.errors }}
-                </div>
-            {% endif %}
+{% if form.errors %}
+                <div class="rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{{ form.errors }}
+                </div>{% endif %}
 
             <button type="submit" class="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 font-bold text-white shadow-lg shadow-cyan-500/20 hover:opacity-95">
                 Saqlash
@@ -72,31 +59,24 @@
                     <a href="{% url 'online_urgat:add_question_to_test' test.id %}" class="rounded-xl bg-cyan-500/20 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/30">Odatiy savol</a>
                     <a href="{% url 'online_urgat:add_question_file_to_test' test.id %}" class="rounded-xl bg-violet-500/20 px-3 py-2 text-xs font-semibold text-violet-100 hover:bg-violet-500/30">Rasm/PDF yuklash</a>
                 </div>
-            </div>
-            {% if questions %}
-                {% for question in questions %}
+            </div>{% if questions %}{% for question in questions %}
                     <div class="glass-soft rounded-[22px] p-4">
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <p class="text-sm text-slate-300">{{ forloop.counter }}. {{ question.display_title|truncatechars:90 }}</p>
-                                <p class="mt-1 text-xs text-slate-400">
-                                    {% if question.is_shared_mode %}Umumiy fayl rejimi{% elif question.is_file_mode %}Rasm/PDF rejimi{% else %}Odatiy rejim{% endif %}
+                                <p class="mt-1 text-xs text-slate-400">{% if question.is_shared_mode %}Umumiy fayl rejimi{% elif question.is_file_mode %}Rasm/PDF rejimi{% else %}Odatiy rejim{% endif %}
                                     · To'g'ri javob: {{ question.correct_option }}
                                 </p>
                             </div>
                             <div class="flex items-center gap-2">
                                 <a href="{% url 'online_urgat:edit_question' test.id question.id %}" class="rounded-xl bg-amber-500/20 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/30">Tahrirlash</a>
-                                <form method="post" action="{% url 'online_urgat:delete_question' test.id question.id %}" onsubmit="return confirm('Savolni o\'chirishni xohlaysizmi?');">
-                                    {% csrf_token %}
+                                <form method="post" action="{% url 'online_urgat:delete_question' test.id question.id %}" onsubmit="return confirm('Savolni o\'chirishni xohlaysizmi?');">{% csrf_token %}
                                     <button type="submit" class="rounded-xl bg-rose-500/20 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-500/30">O'chirish</button>
                                 </form>
                             </div>
                         </div>
-                    </div>
-                {% endfor %}
-            {% else %}
-                <div class="glass-soft rounded-[22px] p-4 text-slate-300">Hali savollar qo'shilmagan.</div>
-            {% endif %}
+                    </div>{% endfor %}{% else %}
+                <div class="glass-soft rounded-[22px] p-4 text-slate-300">Hali savollar qo'shilmagan.</div>{% endif %}
         </div>
     </div>
 </div>

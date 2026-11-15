@@ -1,6 +1,4 @@
-{% extends 'accounts/base.html' %}
-{% block title %}Dashboard - MathPlatform{% endblock %}
-
+{% extends 'accounts/base.html' %}{% block title %}Dashboard - MathPlatform{% endblock %}
 {% block content %}
 <div class="space-y-6">
     <div class="glass rounded-[28px] p-6 sm:p-8">
@@ -33,10 +31,8 @@
             <h3 class="text-2xl font-bold text-white">Oxirgi natijalar</h3>
             <a href="{% url 'test_history' %}" class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-white/10">Barcha tarix</a>
         </div>
-
-        {% if attempts %}
-            <div class="space-y-3">
-                {% for attempt in attempts %}
+{% if attempts %}
+            <div class="space-y-3">{% for attempt in attempts %}
                     <div class="glass rounded-[22px] p-4">
                         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div>
@@ -48,12 +44,8 @@
                                 <div class="text-xs text-slate-400">{{ attempt.score }}/{{ attempt.total_questions }}</div>
                             </div>
                         </div>
-                    </div>
-                {% endfor %}
-            </div>
-        {% else %}
-            <div class="rounded-[22px] border border-white/10 bg-white/5 p-4 text-slate-300">Hozircha hech qanday test natijasi yo'q.</div>
-        {% endif %}
+                    </div>{% endfor %}
+            </div>{% else %}
+            <div class="rounded-[22px] border border-white/10 bg-white/5 p-4 text-slate-300">Hozircha hech qanday test natijasi yo'q.</div>{% endif %}
     </div>
-</div>
-{% endblock %}
+</div>{% endblock %}

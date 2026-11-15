@@ -1,6 +1,4 @@
-{% extends 'accounts/base.html' %}
-{% block title %}SMS Tasdiqlash{% endblock %}
-
+{% extends 'accounts/base.html' %}{% block title %}SMS Tasdiqlash{% endblock %}
 {% block content %}
 <div class="mx-auto max-w-md py-10">
     <div class="glass rounded-[30px] p-7 sm:p-8 text-center">
@@ -11,8 +9,7 @@
 
         <p class="mb-6 text-sm text-slate-300">Telefon raqamingizga yuborilgan 4 xonali kodni kiriting.</p>
 
-        <form method="POST" action="{% url 'verify_sms' %}" class="space-y-4">
-            {% csrf_token %}
+        <form method="POST" action="{% url 'verify_sms' %}" class="space-y-4">{% csrf_token %}
             <input type="hidden" name="phone_number" value="{{ phone_number }}">
 
             <div>
@@ -24,5 +21,4 @@
             </button>
         </form>
     </div>
-</div>
-{% endblock %}
+</div>{% endblock %}

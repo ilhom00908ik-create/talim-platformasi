@@ -1,5 +1,4 @@
-<!DOCTYPE html>
-{% load static %}
+<!DOCTYPE html>{% load static %}
 <html lang="uz">
 
 <head>
@@ -12,7 +11,16 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="{% static 'live_room.css' %}?v=8">
+    <link rel="stylesheet" href="{% static 'live_room.css' %}?v=12">
+    <style>
+        /* Zoom uslubi: butun xona foni mutlaqo qora */
+        html,
+        body.live-room {
+            background: #000;
+            margin: 0;
+            height: 100%;
+        }
+    </style>
 </head>
 
 <body class="live-room" data-role="{% if is_teacher %}teacher{% else %}student{% endif %}">
@@ -23,12 +31,11 @@
                 <div class="room-header__title">
                     <span id="liveBadge" class="pill pill--live{% if not is_live %} pill--idle{% endif %}">
                         <span class="pill__dot"></span>
-                        <span id="liveBadgeText">{% if is_live %}Jonli{% else %}Kutilyapti{% endif %}</span>
+                        <span id="liveBadgeText" data-is-live="{% if is_live %}1{% else %}0{% endif %}">{% if is_live %}Jonli{% else %}Kutilyapti{% endif %}</span>
                     </span>
                     <div class="room-header__meta">
                         <h1>{{ lesson.title }}</h1>
-                        <div class="room-header__sub">
-                            {{ lesson.subject|default:'Umumiy dars' }} · Ustoz: {{ teacher_name }}
+                        <div class="room-header__sub">{{ lesson.subject|default:'Umumiy dars' }} · Ustoz: {{ teacher_name }}
                         </div>
                     </div>
                 </div>
@@ -66,22 +73,22 @@
 
             <!-- ====================================================== stage -->
             <div class="stage" id="stageView">
-                <!-- 1) Grid: ekran uzatilmasa, qora fonda qatnashchilar to'ri -->
+                <!-- 1) Grid: ekran uzatilmasa, qora fonda barcha o'quvchilar to'ri -->
                 <div class="stage__dock" id="stageDock">
                     <div class="grid-layout" id="videoGrid"></div>
                 </div>
 
-                <!-- 2) Screen: ustoz ekrani katta ko'rinadi -->
+                <!-- 2) Screen: ustoz ekrani butun katta maydonni egallaydi -->
                 <div class="stage__screen" id="screenLayer" aria-hidden="true">
                     <video id="screenVideo" autoplay playsinline></video>
                     <div class="stage__screen-empty" id="screenEmpty" hidden>Ekran yuklanmoqda…</div>
                 </div>
 
-                <!-- 3) Ustoz oynachasi — screen rejimida ham ustki qatlamda -->
+                <!-- 3) Ustoz oynachasi — HAR DOIM ustki qatlamda (grid rejimida ham) -->
                 <div class="pip" id="pipWindow" hidden>
                     <video id="pipVideo" autoplay playsinline muted></video>
-                    <div class="tile__placeholder" id="pipPlaceholder" hidden><span id="pipInitials">{{
-                            teacher_name|slice:":1" }}</span></div>
+                    <img id="pipPhoto" class="pip__photo" src="{% if teacher_photo %}{{ teacher_photo }}{% endif %}" alt="" hidden>
+                    <div class="tile__placeholder" id="pipPlaceholder" hidden><span id="pipInitials">{{ teacher_initial }}</span></div>
                     <div class="pip__ring" id="pipRing"></div>
                     <div class="tile__label">
                         <span class="mic-badge" id="pipMic"></span>
@@ -130,15 +137,11 @@
                 <div class="stage-hint" id="stageHint">
                     <div class="stage-hint__avatar">{{ display_initials }}</div>
                     <h2>{{ lesson.title }}</h2>
-                    <p id="stageHintText">
-                        {% if is_teacher %}
-                        Kamera va mikrofon ruxsatini bering. Dars boshlangach bu yerda qatnashchilar qora fonga to'ri
-                        (grid)
-                        shaklida chiqadi. Istasangiz "Ekranni uzatish" tugmasi bilan ekraningizni ko'rsating.
-                        {% else %}
-                        Dars boshlanishini kuting. Ustoz darsga kirgach, bu yerda qatnashchilar qora fonga to'ri (grid)
-                        shaklida chiqadi.
-                        {% endif %}
+                    <p id="stageHintText">{% if is_teacher %}
+                        Kamera va mikrofon ruxsatini bering. Dars boshlangach bu yerda qatnashchilar qora fonda to'ri
+                        (grid) shaklida chiqadi. Istasangiz "Ekranni uzatish" tugmasi bilan ekraningizni ko'rsating.{% else %}
+                        Dars boshlanishini kuting. Ustoz darsga kirgach, bu yerda qatnashchilar qora fonda to'ri (grid)
+                        shaklida chiqadi.{% endif %}
                     </p>
                     <div class="stage-hint__dots"><span></span><span></span></div>
                 </div>
@@ -251,7 +254,7 @@
     <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
     <script id="liveRoomConfig" type="application/json">{{ live_room_config|safe }}</script>
-    <script src="{% static 'live_room.js' %}?v=8" defer></script>
+    <script src="{% static 'live_room.js' %}?v=12" defer></script>
 </body>
 
 </html>

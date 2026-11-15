@@ -150,6 +150,16 @@
     isolation: isolate;
 }
 
+/* Ustoz PiP oynasi uchun joy: grid shu joyni hisobga oladi */
+.stage.pip-open .grid-layout {
+    padding-right: calc(var(--pip-w) + 2 * var(--stage-gap));
+    transition: padding-right 0.2s ease;
+}
+
+@media (max-width: 620px) {
+    .stage.pip-open .grid-layout { padding-right: 0; }
+}
+
 /* --- 1) Grid rejimi: qora fon, qatnashchilar to'ri ------------------------ */
 .stage__dock {
     position: absolute;
@@ -213,6 +223,18 @@
 
 /* Ekran rejimida grid butunlay yashirinadi — faqat pastdagi strip qoladi */
 .stage.screen-mode .stage__dock { display: none; }
+
+/* Ekran rejimida PiP chap yuqori burchakka suriladi — ekranning muhim
+   qismini (masalan, slayd sarlavhasini) to'sib qo'ymaslik uchun */
+.stage.screen-mode .pip {
+    right: auto;
+    left: 16px;
+    top: 64px;
+    bottom: auto;
+    width: clamp(180px, 20vw, 280px);
+    aspect-ratio: 16 / 9;
+    z-index: 10;
+}
 
 /* --- 3) Ekran rejimidagi qatnashchilar strip ---------------------------- */
 .stage__strip {
@@ -533,10 +555,11 @@
 .pip {
     position: absolute;
     right: 16px;
-    bottom: 16px;
+    top: 56px;
     width: var(--pip-w);
     aspect-ratio: 4 / 3;
-    z-index: 9;
+    /* Har doim sahna ustidagi eng ustki qatlam (Zoom uslubi) */
+    z-index: 12;
     border-radius: 14px;
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.18);
@@ -555,6 +578,18 @@
 }
 
 .pip video.is-hidden { display: none; }
+
+/* Ustoz kamerasi o'chirilgan bo'lsa — profil rasmi yoki bosh harf */
+.pip__photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.pip__photo[hidden] { display: none; }
 .pip .tile__placeholder span { width: 40%; max-width: 68px; font-size: 16px; }
 
 .pip__ring {
@@ -583,7 +618,17 @@
 .pip .tile__toolbar { opacity: 1; transform: none; padding: 2px; }
 .pip__meter { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; height: 4px; }
 
-.stage.screen-mode .pip { bottom: 74px; }
+.stage.screen-mode .pip.is-maximized {
+    width: clamp(320px, 40vw, 600px);
+    z-index: 13;
+}
+
+/* Chap panelda kimningdir mikrofoni jimgina "gapiradi" holatida qolib
+   ketmasligi uchun daraja bar 0 dan boshlanadi */
+.people-row:not(.is-speaking) .people-sub .meter__fill {
+    background: linear-gradient(90deg, #15803d, #22c55e);
+    opacity: 0.75;
+}
 
 /* --------------------------------------------------------------- controls */
 .room-controls {
@@ -903,9 +948,9 @@
     .room-side.is-collapsed { display: none; }
     .side-card--people { max-height: 340px; }
     .side-card--chat { height: 320px; flex: none; }
-    .pip { right: 10px; bottom: 10px; --pip-w: 140px; }
+    .pip { right: 10px; top: 52px; --pip-w: 140px; }
     .pip.is-maximized { width: 240px; }
-    .stage.screen-mode .pip { bottom: 86px; }
+    .stage.screen-mode .pip { left: 10px; top: 52px; }
 }
 
 @media (max-width: 620px) {

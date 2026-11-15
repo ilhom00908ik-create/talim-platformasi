@@ -23,16 +23,14 @@
             <a href="{% url 'online_urgat:add_question_file_to_test' test.id %}" class="rounded-xl px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-white/5">Rasm/PDF yuklash orqali</a>
         </div>
 
-        <form method="post" enctype="multipart/form-data" class="space-y-6">
-            {% csrf_token %}
+        <form method="post" enctype="multipart/form-data" class="space-y-6">{% csrf_token %}
             <input type="hidden" name="mode" value="text">
             <div>
                 <label class="mb-2 block text-sm font-medium text-slate-200">Savollar soni</label>
                 <input type="number" name="question_count" min="1" max="10" value="3" class="w-32 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400/80">
             </div>
 
-            <div class="space-y-5">
-                {% for i in '12345678910'|make_list %}
+            <div class="space-y-5">{% for i in '12345678910'|make_list %}
                     <div class="rounded-[24px] border border-white/10 bg-slate-950/30 p-5">
                         <h3 class="mb-4 text-lg font-semibold text-white">Savol {{ forloop.counter }}</h3>
                         <div class="space-y-4">
@@ -63,8 +61,7 @@
                                 <input type="file" name="resource_pdf_{{ forloop.counter0 }}" accept=".pdf" class="block w-full text-sm text-slate-300 file:mr-3 file:rounded-xl file:border-0 file:bg-violet-500/80 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white">
                             </div>
                         </div>
-                    </div>
-                {% endfor %}
+                    </div>{% endfor %}
             </div>
 
             <button type="submit" class="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-3 font-bold text-white shadow-lg shadow-cyan-500/20 hover:opacity-95">

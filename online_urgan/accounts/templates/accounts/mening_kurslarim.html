@@ -1,6 +1,4 @@
-{% extends 'accounts/base.html' %}
-{% block title %}Mening kurslarim - MathPlatform{% endblock %}
-
+{% extends 'accounts/base.html' %}{% block title %}Mening kurslarim - MathPlatform{% endblock %}
 {% block content %}
 <div class="space-y-6">
     <div class="glass rounded-[28px] p-6 sm:p-8">
@@ -50,7 +48,6 @@
         </ul>
     </div>
 </div>
-
 {{ active_lessons|json_script:"activeLessonsData" }}
 
 <script>
@@ -159,5 +156,4 @@
         buildLessons();
         buildCourses();
     });
-</script>
-{% endblock %}
+</script>{% endblock %}

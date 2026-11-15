@@ -1,6 +1,4 @@
-{% extends 'accounts/base.html' %}
-{% block title %}Test ishlash — {{ test.title }}{% endblock %}
-
+{% extends 'accounts/base.html' %}{% block title %}Test ishlash — {{ test.title }}{% endblock %}
 {% block content %}
 <style>
     /* ==========================================================================
@@ -232,36 +230,28 @@
                     Umumiy fayl rejimi
                 </span>
                 <h1 class="mt-3 text-2xl font-black text-white sm:text-3xl">{{ test.title }}</h1>
-                <p class="mt-2 text-sm text-slate-300">
-                    {{ test.subject }} · {{ total_questions }} savol
-                    {% if test.display_file_is_pdf %}· PDF{% elif test.display_file_is_image %}· Rasm{% endif %}
+                <p class="mt-2 text-sm text-slate-300">{{ test.subject }} · {{ total_questions }} savol{% if test.display_file_is_pdf %}· PDF{% elif test.display_file_is_image %}· Rasm{% endif %}
                 </p>
             </div>
             <div class="text-sm text-slate-300">
                 Chapdagi faylni o'qib, o'ng tomondagi varaqda savol raqamlari bo'yicha javob belgilang.
             </div>
         </div>
-
-        {% if messages %}
-        <div class="mt-5 space-y-2">
-            {% for message in messages %}
-            <div class="{% if message.tags == 'success' %}border-emerald-400/35 bg-emerald-500/10 text-emerald-100{% else %}border-rose-400/35 bg-rose-500/10 text-rose-100{% endif %} rounded-xl border p-3 text-sm">{{ message }}</div>
-            {% endfor %}
-        </div>
-        {% endif %}
+{% if messages %}
+        <div class="mt-5 space-y-2">{% for message in messages %}
+            <div class="{% if message.tags == 'success' %}border-emerald-400/35 bg-emerald-500/10 text-emerald-100{% else %}border-rose-400/35 bg-rose-500/10 text-rose-100{% endif %} rounded-xl border p-3 text-sm">{{ message }}</div>{% endfor %}
+        </div>{% endif %}
 
         <div class="shared-test mt-6">
             <!-- Umumiy fayl: PDF uchun iframe, rasm uchun zoom qilinadigan sahifa -->
             <div class="shared-viewer">
                 <div class="shared-viewer__top">
                     <span>{% if test.display_file_is_pdf %}📄 Umumiy PDF{% else %}🖼️ Umumiy rasm{% endif %}</span>
-                    <span class="flex flex-wrap gap-2">
-                        {% if test.display_file_is_image %}
+                    <span class="flex flex-wrap gap-2">{% if test.display_file_is_image %}
                         <button type="button" id="zoomSharedImage"
                             class="rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-[11.5px] font-semibold text-white hover:bg-white/10">
                             Kattalashtirish
-                        </button>
-                        {% endif %}
+                        </button>{% endif %}
                         <a href="{{ test.display_file_url }}" target="_blank" rel="noopener"
                             class="rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-[11.5px] font-semibold text-white hover:bg-white/10">Yangi
                             oynada</a>
@@ -270,24 +260,18 @@
                             olish</a>
                     </span>
                 </div>
-                <div class="shared-viewer__body">
-                    {% if test.display_file_is_pdf %}
-                    <iframe src="{{ test.display_file_url }}#view=FitH" title="Umumiy test fayli" loading="lazy"></iframe>
-                    {% elif test.display_file_is_image %}
-                    <img src="{{ test.display_file_url }}" alt="{{ test.title }} — umumiy fayl" id="sharedImage" loading="lazy">
-                    {% elif test.display_file_url %}
-                    <iframe src="{{ test.display_file_url }}" title="Umumiy test fayli" loading="lazy"></iframe>
-                    {% else %}
+                <div class="shared-viewer__body">{% if test.display_file_is_pdf %}
+                    <iframe src="{{ test.display_file_url }}#view=FitH" title="Umumiy test fayli" loading="lazy"></iframe>{% elif test.display_file_is_image %}
+                    <img src="{{ test.display_file_url }}" alt="{{ test.title }} — umumiy fayl" id="sharedImage" loading="lazy">{% elif test.display_file_url %}
+                    <iframe src="{{ test.display_file_url }}" title="Umumiy test fayli" loading="lazy"></iframe>{% else %}
                     <div class="grid h-full place-items-center text-sm text-slate-400">
                         Umumiy fayl yuklanmagan. O'qituvchi bilan bog'laning.
-                    </div>
-                    {% endif %}
+                    </div>{% endif %}
                 </div>
             </div>
 
             <!-- Javoblar varag'i -->
-            <form method="post" class="answer-sheet" id="answerSheet" autocomplete="off">
-                {% csrf_token %}
+            <form method="post" class="answer-sheet" id="answerSheet" autocomplete="off">{% csrf_token %}
                 <div class="flex items-center justify-between gap-3">
                     <h2 class="text-lg font-bold text-white">Javoblar varag'i</h2>
                     <span id="answeredCount"
@@ -301,19 +285,15 @@
                     <div id="progressBar"></div>
                 </div>
 
-                <div class="answer-sheet__rows">
-                    {% for row in rows %}
+                <div class="answer-sheet__rows">{% for row in rows %}
                     <div class="answer-row{% if row.selected %} is-answered{% endif %}{% if row.is_missing %} is-missing{% endif %}"
                         data-row="{{ row.question.order }}">
-                        <span class="answer-row__num">{{ row.question.order }}</span>
-                        {% for letter, is_checked in row.options %}
+                        <span class="answer-row__num">{{ row.question.order }}</span>{% for letter, is_checked in row.options %}
                         <label class="opt">
                             <input type="radio" name="q_{{ row.question.id }}" value="{{ letter }}" {% if is_checked %}checked{% endif %}>
                             <span>{{ letter }}</span>
-                        </label>
-                        {% endfor %}
-                    </div>
-                    {% endfor %}
+                        </label>{% endfor %}
+                    </div>{% endfor %}
                 </div>
 
                 <button type="submit"
@@ -396,5 +376,4 @@
 
         refresh();
     })();
-</script>
-{% endblock %}
+</script>{% endblock %}

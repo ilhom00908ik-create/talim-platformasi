@@ -59,6 +59,7 @@
         pip: $('pipWindow'),
         pipVideo: $('pipVideo'),
         pipPlaceholder: $('pipPlaceholder'),
+        pipPhoto: $('pipPhoto'),
         pipInitials: $('pipInitials'),
         pipName: $('pipName'),
         pipMic: $('pipMic'),
@@ -460,6 +461,11 @@
             }
 
             upsertUser(id, null);
+            // C0H: masofaviy ovoz darajasi (yashil bar) real vaqtda ishlashi uchun
+            // har bir yangi audio track'da analyserni qayta quramiz.
+            if (track.kind === 'audio' && !entry.remoteStream.getAudioTracks().includes(track)) {
+                entry.remoteStream.addTrack(track);
+            }
             refreshAll();
             if (track.kind === 'audio') {
                 const user = users.get(id);
@@ -483,8 +489,17 @@
     }
 
     function markHasVideo(id) {
-        const entry = peers.get(Number(id));
-        const user = users.get(Number(id));
+        id = Number(id);
+        if (isSelf(id)) {
+            const own = users.get(id);
+            if (own) {
+                own.hasVideo = Boolean(localVideo && camOn);
+                own.noCam = !camOn;
+            }
+            return;
+        }
+        const entry = peers.get(id);
+        const user = users.get(id);
         if (!user) return;
         const stream = entry ? entry.remoteStream : null;
         const live = Boolean(stream && stream.getVideoTracks().some((t) => t.readyState === 'live' && !isScreenLabel(t.label)));
@@ -881,7 +896,9 @@
 
                 const user = users.get(userId);
                 const muted = user ? user.micMuted : false;
-                const speaking = !muted && level > 10;
+                // Sust shovqin ham "gapiradi" deb ko'rinmasligi uchun chegara
+                const speaking = !muted && level > 18;
+                if (user) user.level = level;
 
                 paintMeter(userId, muted ? 0 : level);
                 if (speaking !== lastSpeaking) {
@@ -913,7 +930,8 @@
         const user = users.get(id);
         if (user && user.micMuted) return;
         if (meters.has(id)) return;
-        if (!entry.remoteStream.getAudioTracks().length) {
+        const audioTrack = entry.remoteStream.getAudioTracks()[0];
+        if (!audioTrack || audioTrack.readyState === 'ended') {
             if (retry) setTimeout(() => startRemoteMeter(id, false), 900);
             return;
         }
@@ -926,14 +944,19 @@
         if (entry) {
             cancelAnimationFrame(entry.raf);
             try { entry.source.disconnect(); } catch (error) { /* noop */ }
+            try { entry.analyser.disconnect(); } catch (error) { /* noop */ }
             meters.delete(userId);
         }
+        const user = users.get(userId);
+        if (user) user.level = 0;
         paintMeter(userId, 0);
         setSpeaking(userId, false);
     }
 
     function paintMeter(userId, level) {
         const width = Math.max(0, Math.min(100, level || 0)) + '%';
+        const user = users.get(Number(userId));
+        if (user && !user.speaking && level) user.level = level;
         document.querySelectorAll('[data-meter-for="' + userId + '"]').forEach((bar) => {
             bar.style.width = width;
         });
@@ -944,17 +967,20 @@
         userId = Number(userId);
         const user = users.get(userId);
         if (!user) return;
+        if (user.micMuted && speaking) speaking = false;
         const changed = user.speaking !== speaking;
         user.speaking = speaking;
 
         if (isSelf(userId)) {
             reportedSpeaking = speaking;
+            if (ui.micBtn) ui.micBtn.classList.toggle('is-speaking', speaking);
         }
 
         if (!changed) return;
         paintSpeaking(userId, speaking);
         renderSpeakingChip();
         scheduleSpeakingReset(userId, speaking);
+        refreshLiveIndicators();
     }
 
     function scheduleSpeakingReset(userId, speaking) {
@@ -992,7 +1018,9 @@
             if (tile) tile.classList.toggle('is-speaking', speaking);
         });
 
-        if (isHostUser(userId) && ui.pip) ui.pip.classList.toggle('is-speaking', speaking);
+        if ((isHostUser(userId) || (isTeacher && isSelf(userId))) && ui.pip) {
+            ui.pip.classList.toggle('is-speaking', speaking);
+        }
         renderSpeakingChip();
     }
 
@@ -1014,6 +1042,21 @@
         if (!user) return '';
         return '<span class="mic-badge' + (user.micMuted ? ' is-muted' : '') + '">'
             + (user.micMuted ? ICON.micOff : ICON.micOn) + '</span>';
+    }
+
+    // Yon paneldagi qatorni joyida yangilash (butun ro'yxatni qayta chizmaslik)
+    // — ovoz darajasi barining uzluksiz harakati uchun kerak.
+    function syncPeopleRows() {
+        if (!ui.peopleList) return;
+        sortedUsers().forEach((user) => {
+            const row = ui.peopleList.querySelector('.people-row[data-user-id="' + user.id + '"]');
+            if (!row) return;
+            row.classList.toggle('is-speaking', Boolean(user.speaking));
+            const micSlot = row.querySelector('[data-user-mic]');
+            if (micSlot) micSlot.innerHTML = micBadge(user);
+            const bar = row.querySelector('[data-meter-for="' + user.id + '"]');
+            if (bar) bar.style.width = (user.micMuted ? 0 : (user.level || 0)) + '%';
+        });
     }
 
     function renderPeople() {
@@ -1039,7 +1082,7 @@
                 ? '<span class="tag tag--host">Ustoz</span>'
                 : (isSelf(user.id) ? '<span class="tag">Siz</span>' : '');
 
-            const showMicToggle = isTeacher && !isSelf(user.id);
+            const showMicToggle = isTeacher && !isSelf(user.id) && !isHostUser(user.id);
             const showKick = isTeacher && !isSelf(user.id) && !isHostUser(user.id);
             const micBtn = showMicToggle
                 ? '<button type="button" class="tile-btn ' + (user.micMuted ? 'is-muted' : 'is-on')
@@ -1055,7 +1098,8 @@
             row.innerHTML =
                 '<div class="people-avatar">' + esc(initials(user.name)) + '</div>'
                 + '<div class="people-info">'
-                + '<div class="people-name">' + micBadge(user)
+                + '<div class="people-name">'
+                + '<span class="people-mic" data-user-mic="' + user.id + '">' + micBadge(user) + '</span>'
                 + '<span class="people-name-text" title="' + esc(user.name) + '">' + esc(user.name) + '</span>'
                 + roleTag + '</div>'
                 + '<div class="people-sub"><div class="meter"><div class="meter__fill" data-meter-for="'
@@ -1147,7 +1191,12 @@
         if (!stage || count <= 1) return 1;
         const width = stage.clientWidth || 1;
         const height = stage.clientHeight || 1;
-        const ratio = width / Math.max(1, height);
+        // Ustoz PiP ustida turgani uchun grid kengligi torayadi
+        const pipWidth = stage.classList.contains('pip-open') && ui.pip && !ui.pip.hidden
+            ? ui.pip.getBoundingClientRect().width + 20
+            : 0;
+        const usableRatio = Math.max(0.35, (width - pipWidth) / Math.max(1, height));
+        const ratio = usableRatio;
         let cols = Math.ceil(Math.sqrt(count * ratio));
         const maxCols = width > 1100 ? 5 : 4;
         cols = Math.max(1, Math.min(maxCols, cols));
@@ -1158,7 +1207,8 @@
 
     function renderGrid() {
         if (!ui.grid) return;
-        const list = sortedUsers();
+        // Grid faqat o'quvchilar to'ri: ustoz alohida PiP oynachada turadi
+        const list = sortedUsers().filter((user) => !isHostUser(user.id));
         const scrollTop = ui.grid.scrollTop;
         ui.grid.innerHTML = '';
         ui.grid.classList.toggle('is-single', Boolean(maximizedId));
@@ -1202,36 +1252,65 @@
     /* ------------------------------------------------------------------
        PiP — ustoz oynachasi
        ------------------------------------------------------------------ */
+    /*
+       Ustoz oynachasi (PiP):
+       • Ekran uzatilmasa  -> ustoz kamerasi burchakda, grid ustidagi ustki qatlamda
+       • Ekran uzatilsa    -> ustoz kamerasi chap yuqori burchakda qoladi
+       • Ustozning o'zida  -> o'z kamerasi PiP'da ko'rinmaydi (u grid'da)
+    */
     function renderPip() {
         if (!ui.pip) return;
-        const host = users.get(teacherId);
-        const show = screenOwnerId !== null && host && !isSelf(host.id);
+
+        const own = users.get(me.id);
+        const host = isTeacher ? own : (teacherId != null ? users.get(teacherId) : null);
+        const show = Boolean(host);
         ui.pip.hidden = !show;
+        if (ui.stage) ui.stage.classList.toggle('pip-open', show && screenOwnerId === null);
+
         if (!show) {
             if (ui.pipVideo && ui.pipVideo.srcObject) ui.pipVideo.srcObject = null;
             return;
         }
 
-        if (ui.pipName) ui.pipName.textContent = host.name;
+        if (ui.pipName) ui.pipName.textContent = host.name + (isTeacher ? ' (Siz)' : '');
         if (ui.pipInitials) ui.pipInitials.textContent = initials(host.name);
-        if (ui.pipMic) ui.pipMic.innerHTML = host.micMuted ? ICON.micOff : ICON.micOn;
-        if (ui.pipMic) ui.pipMic.classList.toggle('is-muted', host.micMuted);
-        ui.pip.classList.toggle('is-speaking', host.speaking);
+        if (ui.pipMic) {
+            ui.pipMic.innerHTML = host.micMuted ? ICON.micOff : ICON.micOn;
+            ui.pipMic.classList.toggle('is-muted', Boolean(host.micMuted));
+            ui.pipMic.classList.toggle('is-live', Boolean(host.speaking) && !host.micMuted);
+        }
+        ui.pip.classList.toggle('is-speaking', Boolean(host.speaking));
         ui.pip.classList.toggle('is-maximized', maximizedId === host.id);
 
         const stream = streamFor(host.id);
-        const hasVideo = hasLiveVideo(host.id) && !host.noCam;
+        const hasVideo = Boolean(stream) && hasLiveVideo(host.id) && !host.noCam;
+        const muted = Boolean(host.micMuted);
+
         if (ui.pipVideo) {
             if (hasVideo) {
                 if (ui.pipVideo.srcObject !== stream) ui.pipVideo.srcObject = stream;
                 ui.pipVideo.classList.remove('is-hidden');
+                // O'z oynasida oynani ikki marta eshitmaslik uchun muted
+                ui.pipVideo.muted = true;
                 ui.pipVideo.play().catch(() => {});
             } else {
                 ui.pipVideo.classList.add('is-hidden');
+                if (ui.pipVideo.srcObject) ui.pipVideo.srcObject = null;
             }
         }
-        if (ui.pipPlaceholder) ui.pipPlaceholder.hidden = hasVideo;
-        paintMeter(host.id, host.micMuted ? 0 : (host.level || 0));
+
+        const hasPhoto = !hasVideo && !muted && Boolean(CFG.teacherPhoto) && !isTeacher;
+        if (ui.pipPhoto) {
+            if (hasPhoto) {
+                ui.pipPhoto.src = CFG.teacherPhoto;
+                ui.pipPhoto.hidden = false;
+            } else {
+                ui.pipPhoto.hidden = true;
+            }
+        }
+        if (ui.pipPlaceholder) ui.pipPlaceholder.hidden = hasVideo || hasPhoto;
+
+        paintMeter(host.id, muted ? 0 : (host.level || 0));
     }
 
     /* ------------------------------------------------------------------
@@ -1245,7 +1324,11 @@
     function renderScreen() {
         if (!ui.stage) return;
         const active = screenOwnerId !== null || Boolean(screenStream);
-        ui.stage.classList.toggle('screen-mode', active);
+        if (ui.stage.classList.contains('screen-mode') !== active) {
+            ui.stage.classList.toggle('screen-mode', active);
+            // Rejim almashganda ustoz PiP joylashuvi va qora fon qayta chiziladi
+            requestAnimationFrame(() => renderPip());
+        }
 
         if (ui.screenChip) ui.screenChip.hidden = !active;
         if (active && ui.screenChipText) {
@@ -1272,8 +1355,13 @@
         if (screenOwnerId === me.id && screenStream) {
             stream = screenStream;
         } else {
+            // Faqat ustozning ekran oqimi katta maydonda ko'rsatiladi
             const entry = remoteScreenEntry();
-            stream = entry ? (entry.remoteStream.getVideoTracks().length ? entry.remoteStream : null) : null;
+            if (entry && entry.remoteScreenTrack && entry.remoteScreenTrack.readyState !== 'ended') {
+                stream = new MediaStream([entry.remoteScreenTrack]);
+            } else if (entry && entry.remoteStream.getVideoTracks().length) {
+                stream = entry.remoteStream;
+            }
         }
 
         if (ui.screenVideo && stream) {
@@ -1318,7 +1406,15 @@
 
         // Ekran trackini alohida "screen" sender sifatida qo'shamiz
         peers.forEach((entry) => {
-            try { entry.senders.screen = entry.pc.addTrack(track, display); } catch (error) { /* noop */ }
+            if (entry.senders.screen) {
+                try { entry.senders.screen.replaceTrack(track); } catch (error) { /* noop */ }
+                return;
+            }
+            try {
+                entry.senders.screen = entry.pc.addTrack(track, display);
+                // Yangi track — yangi offer kerak
+                if (entry.hasOfferStarted) negotiate(entry).catch(() => {});
+            } catch (error) { /* noop */ }
         });
 
         sendSignal('screen-share-start', { screen_owner_id: me.id });
@@ -1347,6 +1443,10 @@
         screenOwnerId = null;
 
         sendSignal('screen-share-stop', { screen_owner_id: me.id });
+        // Qayta renegotiation: ekran track'i olib tashlangach ulanish barqaror bo'lsin
+        peers.forEach((entry) => {
+            if (entry.hasOfferStarted) negotiate(entry).catch(() => {});
+        });
         refreshAll();
         addChat('Tizim', 'Ekran uzatish to‘xtatildi.', 'system');
     }
@@ -1413,6 +1513,22 @@
         renderPip();
         updateMicButton();
         updateMuteAllButton();
+    }
+
+    /*
+       Jonli indikatorlar (ovoz darajasi, "gapiradi" holati) uchun yengil
+       yangilanish: DOM qayta qurilmaydi, faqat mavjud qatorlar holati
+       o'zgaradi.
+    */
+    function refreshLiveIndicators() {
+        syncPeopleRows();
+        document.querySelectorAll('.tile[data-user-id]').forEach((tile) => {
+            const user = users.get(Number(tile.dataset.userId));
+            if (!user) return;
+            tile.classList.toggle('is-speaking', Boolean(user.speaking));
+            tile.classList.toggle('is-muted', Boolean(user.micMuted));
+        });
+        renderPip();
     }
 
     function updateMuteAllButton() {

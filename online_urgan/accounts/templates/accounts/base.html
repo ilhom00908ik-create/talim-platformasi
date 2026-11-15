@@ -78,24 +78,17 @@
                 <div class="hidden items-center gap-2 md:flex">
                     <a href="{% url 'home' %}" class="nav-link rounded-xl px-3 py-2 text-sm font-medium transition {% if request.resolver_match.url_name == 'home' %}nav-active text-cyan-100{% else %}text-slate-200 hover:bg-white/5{% endif %}">Bosh sahifa</a>
                     <a href="{% url 'kurslar' %}" class="nav-link rounded-xl px-3 py-2 text-sm font-medium transition {% if request.resolver_match.url_name == 'kurslar' %}nav-active text-cyan-100{% else %}text-slate-200 hover:bg-white/5{% endif %}">Kurslar</a>
-                    <a href="{% url 'oqituvchilar' %}" class="nav-link rounded-xl px-3 py-2 text-sm font-medium transition {% if request.resolver_match.url_name == 'oqituvchilar' %}nav-active text-cyan-100{% else %}text-slate-200 hover:bg-white/5{% endif %}">O'qituvchilar</a>
-                    {% if request.user.is_authenticated %}
-                        <a href="{% url 'mening_kurslarim' %}" class="nav-link rounded-xl px-3 py-2 text-sm font-medium transition {% if request.resolver_match.url_name == 'mening_kurslarim' %}nav-active text-cyan-100{% else %}text-slate-200 hover:bg-white/5{% endif %}">Mening kurslarim</a>
-                        {% if user.is_teacher %}
-                            <a href="{% url 'online_urgat:teacher_dashboard' %}" class="nav-link rounded-xl border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-100 transition hover:bg-violet-500/20">O'qituvchi kabineti</a>
-                        {% endif %}
-                        <a href="{% url 'dashboard' %}" class="nav-link rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20">Dashboard</a>
-                    {% endif %}
+                    <a href="{% url 'oqituvchilar' %}" class="nav-link rounded-xl px-3 py-2 text-sm font-medium transition {% if request.resolver_match.url_name == 'oqituvchilar' %}nav-active text-cyan-100{% else %}text-slate-200 hover:bg-white/5{% endif %}">O'qituvchilar</a>{% if request.user.is_authenticated %}
+                        <a href="{% url 'mening_kurslarim' %}" class="nav-link rounded-xl px-3 py-2 text-sm font-medium transition {% if request.resolver_match.url_name == 'mening_kurslarim' %}nav-active text-cyan-100{% else %}text-slate-200 hover:bg-white/5{% endif %}">Mening kurslarim</a>{% if user.is_teacher %}
+                            <a href="{% url 'online_urgat:teacher_dashboard' %}" class="nav-link rounded-xl border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-100 transition hover:bg-violet-500/20">O'qituvchi kabineti</a>{% endif %}
+                        <a href="{% url 'dashboard' %}" class="nav-link rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/20">Dashboard</a>{% endif %}
                 </div>
 
-                <div class="flex items-center gap-2">
-                    {% if request.user.is_authenticated %}
+                <div class="flex items-center gap-2">{% if request.user.is_authenticated %}
                         <a href="{% url 'profile' %}" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10">Profil</a>
-                        <a href="{% url 'logout' %}" class="rounded-xl bg-red-500/90 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-red-500/30 transition hover:bg-red-500">Chiqish</a>
-                    {% else %}
-                        <a href="{% url 'login' %}" class="hidden rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10 sm:inline-flex">Kirish</a>
-                        <a href="{% url 'register' %}" class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:opacity-95">Ro'yxatdan o'tish</a>
-                    {% endif %}
+                        <a href="{% url 'logout' %}" class="rounded-xl bg-red-500/90 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-red-500/30 transition hover:bg-red-500">Chiqish</a>{% else %}
+                        <a href="{% url 'register' %}" class="hidden rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10 sm:inline-flex">Ro'yxatdan o'tish</a>
+                        <a href="{% url 'login' %}" class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:opacity-95">Kirish</a>{% endif %}
                     <button id="mobileMenuButton" type="button" class="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-lg text-white md:hidden" aria-expanded="false" aria-label="Menu">
                         ☰
                     </button>
@@ -106,25 +99,19 @@
                 <div class="flex flex-col gap-2">
                     <a href="{% url 'home' %}" class="rounded-xl px-3 py-2 text-sm font-medium text-slate-200 hover:bg-white/5">Bosh sahifa</a>
                     <a href="{% url 'kurslar' %}" class="rounded-xl px-3 py-2 text-sm font-medium text-slate-200 hover:bg-white/5">Kurslar</a>
-                    <a href="{% url 'oqituvchilar' %}" class="rounded-xl px-3 py-2 text-sm font-medium text-slate-200 hover:bg-white/5">O'qituvchilar</a>
-                    {% if request.user.is_authenticated %}
-                        <a href="{% url 'mening_kurslarim' %}" class="rounded-xl px-3 py-2 text-sm font-medium text-slate-200 hover:bg-white/5">Mening kurslarim</a>
-                        {% if user.is_teacher %}
-                            <a href="{% url 'online_urgat:teacher_dashboard' %}" class="rounded-xl border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-100">O'qituvchi kabineti</a>
-                        {% endif %}
+                    <a href="{% url 'oqituvchilar' %}" class="rounded-xl px-3 py-2 text-sm font-medium text-slate-200 hover:bg-white/5">O'qituvchilar</a>{% if request.user.is_authenticated %}
+                        <a href="{% url 'mening_kurslarim' %}" class="rounded-xl px-3 py-2 text-sm font-medium text-slate-200 hover:bg-white/5">Mening kurslarim</a>{% if user.is_teacher %}
+                            <a href="{% url 'online_urgat:teacher_dashboard' %}" class="rounded-xl border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-100">O'qituvchi kabineti</a>{% endif %}
                         <a href="{% url 'dashboard' %}" class="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100">Dashboard</a>
                         <a href="{% url 'profile' %}" class="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100">Profil</a>
-                        <a href="{% url 'logout' %}" class="rounded-xl bg-red-500/90 px-3 py-2 text-sm font-semibold text-white">Chiqish</a>
-                    {% else %}
-                        <a href="{% url 'login' %}" class="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white">Kirish</a>
-                        <a href="{% url 'register' %}" class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-3 py-2 text-sm font-semibold text-white">Ro'yxatdan o'tish</a>
-                    {% endif %}
+                        <a href="{% url 'logout' %}" class="rounded-xl bg-red-500/90 px-3 py-2 text-sm font-semibold text-white">Chiqish</a>{% else %}
+                        <a href="{% url 'register' %}" class="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white">Ro'yxatdan o'tish</a>
+                        <a href="{% url 'login' %}" class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-3 py-2 text-sm font-semibold text-white">Kirish</a>{% endif %}
                 </div>
             </div>
         </nav>
 
-        <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-            {% block content %}{% endblock %}
+        <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">{% block content %}{% endblock %}
         </main>
 
         <footer class="mx-auto max-w-7xl px-4 pb-10 pt-2 sm:px-6 lg:px-8">
@@ -139,12 +126,9 @@
 
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
                         <a href="{% url 'home' %}" class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 hover:bg-white/10">Bosh sahifa</a>
-                        <a href="{% url 'kurslar' %}" class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 hover:bg-white/10">Kurslar</a>
-                        {% if request.user.is_authenticated %}
-                            <a href="{% url 'test_history' %}" class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20">Natijalarim</a>
-                        {% else %}
-                            <a href="{% url 'register' %}" class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20">Ro'yxatdan o'tish</a>
-                        {% endif %}
+                        <a href="{% url 'kurslar' %}" class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 hover:bg-white/10">Kurslar</a>{% if request.user.is_authenticated %}
+                            <a href="{% url 'test_history' %}" class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20">Natijalarim</a>{% else %}
+                            <a href="{% url 'login' %}" class="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20">Kirish</a>{% endif %}
                     </div>
                 </div>
             </div>
