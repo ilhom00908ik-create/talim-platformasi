@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="{% static 'live_room.css' %}?v=13">
+    <link rel="stylesheet" href="{% static 'live_room.css' %}?v=14">
     <style>
         /* Zoom uslubi: butun xona foni mutlaqo qora */
         html,
@@ -38,6 +38,20 @@
         <span id="mediaBannerText">Kamera va mikrofon ruxsati kerak.</span>
         <button id="mediaRetryBtn" type="button" class="ctrl-btn ctrl-btn--primary"><span>Ruxsat berish</span></button>
     </div>
+
+    {# Brauzer autoplay siyosati masofaviy ovozni bloklasa ko'rinadigan tugma #}
+    <div class="audio-hint" id="audioHint" hidden role="status">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" aria-hidden="true">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+        <span>Ustozning ovozi eshitilmayapti?</span>
+        <button id="audioHintBtn" type="button" class="ctrl-btn ctrl-btn--primary"><span>Ovozni yoqish</span></button>
+    </div>
+
+    {# Masofaviy <audio> elementlar JS tomonidan shu yerga qo'shiladi #}
+    <div id="remoteAudioLayer" class="remote-audio-layer" aria-hidden="true"></div>
 
     <div class="room-app" id="roomApp">
         <main class="room-main">
@@ -269,7 +283,7 @@
     <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
     <script id="liveRoomConfig" type="application/json">{{ live_room_config|safe }}</script>
-    <script src="{% static 'live_room.js' %}?v=14" defer></script>
+    <script src="{% static 'live_room.js' %}?v=15" defer></script>
 </body>
 
 </html>

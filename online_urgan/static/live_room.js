@@ -98,7 +98,13 @@
         mediaBanner: $('mediaBanner'),
         mediaBannerText: $('mediaBannerText'),
         mediaRetryBtn: $('mediaRetryBtn'),
+        audioHint: $('audioHint'),
+        audioHintBtn: $('audioHintBtn'),
+        audioLayer: $('remoteAudioLayer'),
     };
+
+    const remoteAudioEls = new Map(); // userId -> HTMLAudioElement
+    let audioUnlocked = false;
 
     const ICON = {
         micOn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>',
@@ -133,6 +139,13 @@
     let screenOwnerId = null;
     let maximizedId = null;
     let reportedSpeaking = false;
+
+    // Masofaviy ovoz: har bir peer uchun alohida <audio> element. `video`
+    // elementlar (grid/PiP) `muted` bo'lgani uchun ovozni ULAB berolmaydi,
+    // shu sababli audio alohida yuritiladi. Brauzer `play()` va'dasini
+    // rad etsa (autoplay siyosati), `audioUnlocked` false bo'lib qoladi va
+    // ekranda "Ovozni yoqish" tugmasi chiqadi — foydalanuvchi bosganda
+    // barcha elementlar qayta `play()` qilinadi.
     let mediaRequest = null;      // getUM'ni ikki marta chaqirmaslik uchun
     let mediaBlocked = false;     // ruxsat berilmagan / kamera-mikrofon yo'q
 
@@ -153,7 +166,18 @@
             users: { get: () => users, enumerable: true },
             localStream: { get: () => localStream, enumerable: true },
             screenOwnerId: { get: () => screenOwnerId, enumerable: true },
+            remoteAudioEls: { get: () => remoteAudioEls, enumerable: true },
+            audioUnlocked: { get: () => audioUnlocked, enumerable: true },
         });
+        // Diagnostika: masofaviy ovoz holatini konsoldan ko'rish
+        diagWindow.audioDiagnostics = () => [...remoteAudioEls.entries()].map(([id, el]) => ({
+            userId: id,
+            paused: el.paused,
+            muted: el.muted,
+            readyState: el.readyState,
+            currentTime: Number(el.currentTime.toFixed(2)),
+            tracks: el.srcObject ? el.srcObject.getAudioTracks().map((t) => t.readyState) : [],
+        }));
     } catch (error) { /* diagnostika xonani to'xtatmasin */ }
 
     // Brauzer konsolidan protokol tekshirish: __liveRoom.diag().sdp
@@ -432,8 +456,13 @@
             addChat(item.sender, item.message, item.sender_id === me.id ? 'me' : '');
         });
 
+        // Server `null` qaytarsa ekran uzatish tugagan — aks holda qayta
+        // ulanishdan keyin o'quvchi kameralari grid'da hech qachon
+        // ko'rinmasdi (`screenOwnerId` eski qiymatda qolib ketardi).
         if (msg.screen_owner_id) {
             screenOwnerId = Number(msg.screen_owner_id);
+        } else if (!screenStream) {
+            screenOwnerId = null;
         }
 
         refreshAll();
@@ -578,6 +607,9 @@
             }
             refreshAll();
             if (track.kind === 'audio') {
+                // ENG MUHIM: masofaviy ovozni eshitish uchun alohida <audio>
+                // elementga ulaymiz va `play()` qilamiz (video elementlar muted).
+                attachRemoteAudio(entry, track);
                 const user = users.get(id);
                 if (!user || !user.micMuted) startRemoteMeter(id, true);
             }
@@ -796,9 +828,148 @@
             entry.pc.close();
         } catch (error) { /* ignore */ }
         peers.delete(id);
+        removeRemoteAudio(id);
         stopMeter(id);
         pendingCandidates.delete(id);
         clearSpeakingTimer(id);
+    }
+
+    /* ------------------------------------------------------------------
+       MASOFAVIY OVOZ (remoteStream -> <audio>)
+       ------------------------------------------------------------------ */
+    function ensureAudioLayer() {
+        if (ui.audioLayer) return ui.audioLayer;
+        const layer = document.createElement('div');
+        layer.id = 'remoteAudioLayer';
+        layer.className = 'remote-audio-layer';
+        layer.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(layer);
+        ui.audioLayer = layer;
+        return layer;
+    }
+
+    function remoteAudioEl(id) {
+        id = Number(id);
+        let el = remoteAudioEls.get(id);
+        if (el) return el;
+        el = document.createElement('audio');
+        el.autoplay = true;                 // atribut sifatida ham yozamiz
+        el.setAttribute('autoplay', '');
+        el.setAttribute('playsinline', '');
+        el.playsInline = true;
+        el.preload = 'auto';
+        el.dataset.userId = String(id);
+        el.muted = false;
+        el.volume = 1;
+        // Element DOM'da bo'lishi kerak: ba'zi brauzerlar (Safari/iOS)
+        // ajratilgan elementdagi oqimni ijro etmaydi.
+        ensureAudioLayer().appendChild(el);
+        remoteAudioEls.set(id, el);
+        return el;
+    }
+
+    function playAudioEl(el) {
+        if (!el) return Promise.resolve(false);
+        el.muted = false;
+        try {
+            const result = el.play();
+            if (result && typeof result.then === 'function') {
+                return result.then(() => {
+                    markAudioUnlocked();
+                    return true;
+                }).catch((error) => {
+                    console.warn('[live-room] audio autoplay blocked', error && error.message);
+                    showAudioHint();
+                    return false;
+                });
+            }
+            markAudioUnlocked();
+            return Promise.resolve(true);
+        } catch (error) {
+            showAudioHint();
+            return Promise.resolve(false);
+        }
+    }
+
+    function attachRemoteAudio(entry, track) {
+        const el = remoteAudioEl(entry.id);
+
+        // Element allaqachon peer'ning to'liq stream'i bilan bog'langan bo'lsa
+        // uni almashtirmaymiz: yangi audio track o'sha stream ICHIDA paydo
+        // bo'ladi va brauzer uni o'zi ijro etadi. Aks holda (birinchi audio
+        // track, yoki srcObject bo'sh) — bog'laymiz. `attachRemoteAudio`
+        // faqat audio track kelganda chaqiriladi, shuning uchun bu yerda
+        // `remoteStream` doim kamida shu track'ni o'z ichiga oladi.
+        if (el.srcObject !== entry.remoteStream) {
+            el.srcObject = entry.remoteStream;
+        }
+
+        track.onunmute = () => { playAudioEl(el); };
+        track.onended = () => {
+            // Track tugasa element bo'shatiladi — keyingi ulanishda yangi
+            // track kelganda yana bog'lanadi.
+            if (el.srcObject && el.srcObject.getTracks().indexOf(track) !== -1
+                && track.readyState === 'ended') {
+                try { el.srcObject.removeTrack(track); } catch (error) { /* noop */ }
+                if (!el.srcObject.getTracks().length) el.srcObject = null;
+            }
+        };
+
+        playAudioEl(el);
+    }
+
+    function removeRemoteAudio(id) {
+        id = Number(id);
+        const el = remoteAudioEls.get(id);
+        if (!el) return;
+        try { el.pause(); } catch (error) { /* noop */ }
+        el.srcObject = null;
+        if (el.parentNode) el.parentNode.removeChild(el);
+        remoteAudioEls.delete(id);
+        updateAudioHint();
+    }
+
+    function markAudioUnlocked() {
+        if (audioUnlocked) return;
+        audioUnlocked = true;
+        updateAudioHint();
+    }
+
+    function showAudioHint() {
+        audioUnlocked = false;
+        updateAudioHint();
+    }
+
+    // Ovozni yoqish tugmasi faqat HAQIQATAN masofaviy ovoz kutilyotgan
+    // bo'lsa ko'rinadi (aks holda tugma tengi keraksiz bezovta qiladi).
+    function updateAudioHint() {
+        if (!ui.audioHint) return;
+        let waiting = false;
+        remoteAudioEls.forEach((el) => {
+            const stream = el.srcObject;
+            const hasAudio = Boolean(stream && stream.getAudioTracks().some((t) => t.readyState === 'live'));
+            if (hasAudio && (el.paused || audioUnlocked === false)) waiting = true;
+        });
+        ui.audioHint.hidden = !waiting;
+    }
+
+    // Brauzer autoplay siyosatini chetlab o'tish: foydalanuvchining birinchi
+    // bosishi/tugmasi bilan barcha audio elementlarni ishga tushiramiz.
+    function unlockAudio() {
+        let pending = 0;
+        remoteAudioEls.forEach((el) => {
+            if (!el.srcObject) return;
+            const stream = el.srcObject;
+            if (!stream.getAudioTracks().some((t) => t.readyState === 'live')) return;
+            pending += 1;
+            playAudioEl(el);
+        });
+        updateAudioHint();
+        if (!pending) {
+            audioUnlocked = true;
+            updateAudioHint();
+        }
+        return pending;
     }
 
     /* ------------------------------------------------------------------
@@ -1470,6 +1641,18 @@
 
     function renderGrid() {
         if (!ui.grid) return;
+        // Ustoz ekran uzatayotganda student kameralari asosiy sahnadan (grid'dan)
+        // BUTUNLAY yashiriladi — katta maydon faqat ustoz ekraniga tegishli.
+        // Ekran uzatish to'xtagach ro'yxat avtomatik tiklanadi (renderScreen /
+        // onScreenStop -> refreshAll), ya'ni kameralar qayta ko'rinadi.
+        if (screenOwnerId !== null) {
+            ui.grid.innerHTML = '';
+            ui.grid.classList.remove('is-single', 'is-lone');
+            ui.grid.style.setProperty('--cols', '1');
+            if (ui.hint) ui.hint.hidden = true;
+            ui.stage.classList.add('screen-mode');
+            return;
+        }
         // Grid faqat o'quvchilar to'ri: ustoz alohida PiP oynachada turadi
         const list = sortedUsers().filter((user) => !isHostUser(user.id));
         const scrollTop = ui.grid.scrollTop;
@@ -1994,9 +2177,23 @@
                 if (video.srcObject) video.play().catch(() => {});
             });
             if (audioCtxRef.ctx && audioCtxRef.ctx.state === 'suspended') audioCtxRef.ctx.resume().catch(() => {});
+            // Masofaviy ovoz ham shu harakat bilan ochiladi (autoplay bloki)
+            unlockAudio();
         };
         document.addEventListener('click', unlock);
         document.addEventListener('touchstart', unlock, { passive: true });
+
+        // Aniq "Ovozni yoqish" tugmasi — avtomatik unlock ishlamagan holat uchun
+        if (ui.audioHintBtn) {
+            ui.audioHintBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                audioUnlocked = true;
+                unlockAudio();
+                audioUnlocked = true;
+                updateAudioHint();
+                toast('Ovoz yoqildi.');
+            });
+        }
 
         let resizeTimer = 0;
         window.addEventListener('resize', () => {
@@ -2019,6 +2216,7 @@
         }
         [...peers.keys()].forEach(destroyPeer);
         [...meters.keys()].forEach(stopMeter);
+        [...remoteAudioEls.keys()].forEach(removeRemoteAudio);
         try { if (socket && socket.readyState === WebSocket.OPEN) socket.close(); } catch (error) { /* noop */ }
     }
 
