@@ -61,6 +61,98 @@
         .nav-link:hover {
             transform: translateY(-1px);
         }
+
+        /* ==================================================================
+           MOBIL MOSLASHUVCHANLIK (<= 768px)
+           ------------------------------------------------------------------
+           Tailwind'ning `rounded-[30px]`, `text-4xl/6xl`, `p-7` kabi qiymatlari
+           telefonda haddan tashqari katta ko'rinadi. Quyidagi qoidalar BUTUN
+           sayt uchun umumiy: sahifalar o'zida hech narsa o'zgartirmasa ham
+           konteynerlar, sarlavhalar, tugmalar va jadvallar ekranga sig'adi.
+           ================================================================== */
+        @media (max-width: 768px) {
+            /* Ortiqcha gorizontal scroll bo'lmasin */
+            html, body { overflow-x: hidden; }
+
+            /* --- konteynerlar: kichikroq padding va radius --- */
+            main { padding-left: 12px !important; padding-right: 12px !important;
+                   padding-top: 20px !important; padding-bottom: 20px !important; }
+            .rounded-\[30px\],
+            .rounded-\[28px\],
+            .rounded-\[26px\],
+            .rounded-\[24px\] { border-radius: 18px !important; }
+
+            /* --- matn o'lchamlari: bitta daraja kichik --- */
+            .text-6xl { font-size: 2.1rem !important; line-height: 1.12 !important; }
+            .text-5xl { font-size: 1.85rem !important; line-height: 1.15 !important; }
+            .text-4xl { font-size: 1.6rem !important;  line-height: 1.2 !important; }
+            .text-3xl { font-size: 1.35rem !important; line-height: 1.25 !important; }
+            .text-2xl { font-size: 1.18rem !important; line-height: 1.3 !important; }
+            h1 { word-break: break-word; }
+
+            /* --- tugmalar: to'liq kenglik, barmoq uchun qulay balandlik --- */
+            .glass a[class*="rounded-2xl"],
+            .glass button[class*="rounded-2xl"],
+            .glass-footer a[class*="px-4"] {
+                min-height: 46px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 0.92rem;
+                padding-left: 16px;
+                padding-right: 16px;
+            }
+            /* Formmaydonlari: iOS'da 16px dan kichik shrift avto-zoom qiladi */
+            input, select, textarea { font-size: 16px !important; }
+
+            /* --- jadvallar: gorizontal scroll, kataklar ixcham --- */
+            .overflow-x-auto, table { -webkit-overflow-scrolling: touch; }
+            table { width: 100%; display: block; overflow-x: auto; white-space: nowrap; }
+            th, td { padding: 8px 10px !important; font-size: 12.5px !important; }
+
+            /* --- nav --- */
+            /* `md:` = min-width:768px — AYNAN 768px'da desktop havolalar allaqachon
+               ko'rinadi, lekin gamburger ham yashirinmaydi. Shu ziddiyatni
+               tuzatamiz: <=768px — FAQAT gamburger + ochiladigan menyu. */
+            nav .mx-auto.flex.max-w-7xl { padding-left: 12px; padding-right: 12px; gap: 8px; }
+
+            /* Desktop havolalar bloki (Bosh sahifa / Kurslar / ...) yashiriladi.
+               Ro'yxatdan o'tish / Kirish tugmalari esa tepada QOLADI. */
+            nav .hidden.items-center.gap-2 { display: none !important; }
+
+            /* Profil va Chiqish menyu ichida bor — tepadagi dublikat olib tashlanadi */
+            nav > .mx-auto > div:last-child > a[href="/profile/"],
+            nav > .mx-auto > div:last-child > a[href="/logout/"] { display: none !important; }
+
+            #mobileMenuButton {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 42px;
+                height: 42px;
+                flex-shrink: 0;
+            }
+            /* Menyu `md:hidden` klassi bilan keladi — aynan 768px'da u
+               `display:none` bo'lib qolib, JS ochganda ham ko'rinmasdi.
+               JS toggledigan `.hidden` klassi yagona nazorat bo'lsin. */
+            #mobileMenu.md\:hidden { display: revert !important; }
+            #mobileMenu.hidden { display: none !important; }
+            #mobileMenu a { min-height: 44px; display: flex; align-items: center; }
+
+            /* --- footer --- */
+            footer .glass-footer { padding: 16px; border-radius: 18px; }
+            footer .glass-footer > div > div:last-child { width: 100%; }
+            footer .glass-footer a { width: 100%; justify-content: center; }
+        }
+
+        /* Juda kichik telefonlar */
+        @media (max-width: 420px) {
+            .text-6xl { font-size: 1.85rem !important; }
+            .text-5xl { font-size: 1.65rem !important; }
+            .text-4xl { font-size: 1.45rem !important; }
+            .text-3xl { font-size: 1.22rem !important; }
+            main { padding-left: 10px !important; padding-right: 10px !important; }
+        }
     </style>
 </head>
 <body class="text-slate-100 antialiased">

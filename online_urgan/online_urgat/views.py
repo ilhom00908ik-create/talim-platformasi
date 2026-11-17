@@ -114,14 +114,18 @@ def teacher_application_status(user):
 
 
 def teacher_redirect_for(user):
-    """O'qituvchi huquqi yo'q foydalanuvchini qayerga yuborish kerakligi.
+    """Foydalanuvchini holatiga qarab qayerga yuborish kerakligi.
 
+    • approved -> o'qituvchi kabineti (bot tasdiqlagan ustoz darhol kiradi)
     • pending  -> ariza tasdiqlanishini kutish sahifasi
     • boshqa   -> ariza topshirish sahifasi
-    Holat har safar bazadan olinadi, shuning uchun admin tasdiqlagach
+    Holat har safar bazadan olinadi, shuning uchun admin/bot tasdiqlagach
     foydalanuvchi qayta login qilmasdan ham to'g'ri joyga tushadi.
     """
-    if teacher_application_status(user) == 'pending':
+    status = teacher_application_status(user)
+    if status == 'approved':
+        return 'online_urgat:teacher_dashboard'
+    if status == 'pending':
         return 'online_urgat:teacher_pending'
     return 'online_urgat:teacher_register'
 

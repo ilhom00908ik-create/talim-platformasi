@@ -1,5 +1,6 @@
 import random
 import re
+import secrets
 from datetime import timedelta
 
 from django.conf import settings
@@ -21,7 +22,8 @@ from online_urgat.views import (
     teacher_application_status,
 )
 
-from .models import UserProfile
+from . import telegram_service
+from .models import TelegramUserLink, UserProfile
 
 
 # Rol va kabinetga yo'naltirish — bitta joyda, online_urgat mantiqi bilan bir xil.
@@ -57,6 +59,32 @@ def _normalize_phone(value):
     if len(digits) == 9:
         digits = '998' + digits
     return digits
+
+
+def _find_user_by_contact(contact):
+    """Email / telefon / Telegram username bo'yicha mavjud userni topadi."""
+    contact = (contact or '').strip()
+    if not contact:
+        return None
+
+    user = None
+    if '@' in contact and not contact.startswith('@'):
+        user = User.objects.filter(email__iexact=contact).first()
+        if user is None:
+            user = User.objects.filter(username__iexact=contact).first()
+    elif telegram_service.looks_like_telegram(contact):
+        username = telegram_service.normalize_telegram_username(contact)
+        link = telegram_service.find_link_by_username(username)
+        if link is not None:
+            user = link.user
+    else:
+        normalized = _normalize_phone(contact)
+        profile = UserProfile.objects.filter(phone_or_email__endswith=normalized[-9:]).first() \
+            if normalized else None
+        if profile is not None:
+            user = profile.user
+
+    return user
 
 
 def _user_profile(user, phone_or_email=None, device_secret_key=None):
@@ -207,85 +235,241 @@ def home_view(request):
     })
 
 
+REG_CODE_TTL = 10 * 60  # 10 daqiqa
+REG_MAX_ATTEMPTS = 5
+
+
+def _registration_channel(contact):
+    """Kiritilgan qayd turini aniqlaydi: 'email' | 'telegram' | 'phone'."""
+    contact = (contact or '').strip()
+    if '@' in contact and not contact.startswith('@'):
+        return 'email'
+    if telegram_service.looks_like_telegram(contact):
+        return 'telegram'
+    return 'phone'
+
+
+def _deliver_reg_code(request, channel, contact, code):
+    """Kodni kanalga qarab yuboradi. (delivered: bool, message: str) qaytaradi.
+
+    Ustuvorlik: agar foydalanuvchi Telegramini bog'lagan bo'lsa — kod HAR DOIM
+    Telegramga boradi (email/SMS'dan qat'i nazar).
+    """
+    # 1) Tasdiqlangan Telegram bog'lanishi bo'lsa — birinchi navbatda o'sha
+    user = _find_user_by_contact(contact)
+    if user is not None:
+        sent, _reason = telegram_service.send_code_to_user(user, code)
+        if sent:
+            return True, 'Telegramingizga tasdiqlash kodi yuborildi.'
+
+    # 2) Email
+    if channel == 'email':
+        try:
+            send_mail(
+                subject='Online Urgan - Tasdiqlash kodi',
+                message=f"Sizning ro'yxatdan o'tish uchun tasdiqlash kodingiz: {code}",
+                from_email=None,
+                recipient_list=[contact],
+                fail_silently=True,
+            )
+            return True, f'{contact} manziliga tasdiqlash kodi yuborildi.'
+        except Exception as exc:  # noqa: BLE001
+            print(f'Email yuborishda xatolik: {exc}')
+            return False, 'Email yuborilmadi. Telegram orqali ro\'yxatdan o\'tishni sinab ko\'ring.'
+
+    # 3) Telegram username — bot hali bog'lanmagan bo'lsa kodni SMS/console'ga
+    #    yozamiz va foydalanuvchidan botga o'tishni so'raymiz.
+    if channel == 'telegram':
+        if not telegram_service.is_configured():
+            return False, 'Telegram bot sozlanmagan. Email yoki telefon raqamdan foydalaning.'
+        return False, 'telegram_pending'
+
+    # 4) Telefon — SMS shlyuzi yo'q, kod konsolga (server logiga) chiqadi
+    print(f'\n[SMS -> {contact}] {code}\n')
+    return True, ''
+
+
+def _reg_context(step, **extra):
+    """registratsiya shablonining umumiy konteksti."""
+    context = {
+        'step': step,
+        'bot_username': telegram_service.bot_username(),
+        'telegram_ready': telegram_service.is_configured(),
+    }
+    context.update(extra)
+    return context
+
+
 def register_view(request):
     if request.user.is_authenticated:
         return redirect(landing_url_name_for(request.user))
     if request.session.get('register_step') == 'password_step':
         return redirect('register_password')
-    
+
     if request.method == 'POST':
         action = request.POST.get('action')
 
         if action == 'send_code':
             username = (request.POST.get('username') or '').strip()
             phone_or_email = (request.POST.get('phone_or_email') or '').strip()
-            is_email = '@' in phone_or_email
+            channel = _registration_channel(phone_or_email)
 
             if not username or not phone_or_email:
-                return render(request, 'accounts/register.html', {
-                    'step': 'initial',
-                    'error': 'Foydalanuvchi nomi va email/telefonni to\'liq kiriting!',
-                })
+                return render(request, 'accounts/register.html', _reg_context(
+                    'initial',
+                    error='Foydalanuvchi nomi va email/telefon/Telegramni to\'liq kiriting!',
+                    username=username,
+                    phone_or_email=phone_or_email,
+                ))
 
             if User.objects.filter(username__iexact=username).exists():
-                return render(request, 'accounts/register.html', {'step': 'initial', 'error': 'Bu foydalanuvchi nomi band!'})
+                return render(request, 'accounts/register.html', _reg_context(
+                    'initial', error='Bu foydalanuvchi nomi band!', phone_or_email=phone_or_email))
 
             # Telefonlar (+998901234567 / 901234567) bir xil ko'rinishda solishtiriladi.
             already_exists = UserProfile.objects.filter(phone_or_email__iexact=phone_or_email).exists()
-            if not already_exists and not is_email:
+            if not already_exists and channel == 'phone':
                 normalized = _normalize_phone(phone_or_email)
                 if normalized:
                     already_exists = UserProfile.objects.filter(phone_or_email__endswith=normalized[-9:]).exists()
 
             if already_exists:
-                return render(request, 'accounts/register.html', {
-                    'step': 'initial',
-                    'error': 'Bu email yoki raqam allaqachon ro\'yxatdan o\'tgan!',
-                })
+                return render(request, 'accounts/register.html', _reg_context(
+                    'initial', error='Bu email yoki raqam allaqachon ro\'yxatdan o\'tgan!'))
 
-            code = str(random.randint(1000, 9999))
+            code = str(random.randint(100000, 999999))
             request.session['reg_code'] = code
+            request.session['reg_code_sent_at'] = int(timezone.now().timestamp())
+            request.session['reg_attempts'] = 0
             request.session['reg_username'] = username
             request.session['reg_contact'] = phone_or_email
+            request.session['reg_channel'] = channel
 
-            if is_email:
-                try:
-                    send_mail(
-                        subject='Online Urgan - Tasdiqlash kodi',
-                        message=f"Sizning ro'yxatdan o'tish uchun tasdiqlash kodingiz: {code}",
-                        from_email=None,
-                        recipient_list=[phone_or_email],
-                        fail_silently=True,
-                    )
-                except Exception as e:
-                    print(f"Email yuborishda xatolik: {e}")
-            else:
-                print(f"\n[SMS YUBORILDI -> {phone_or_email}]: {code}\n")
+            delivered, message = _deliver_reg_code(request, channel, phone_or_email, code)
 
-            print(f"\n[TASDIQLASH KODI]: {code}\n")
+            if message == 'telegram_pending':
+                # Telegram kanali tanlandi, lekin bot hali bog'lanmagan:
+                # foydalanuvchiga `t.me/...?start=` havolasini ko'rsatamiz.
+                link_token = secrets.token_urlsafe(16)[:32]
+                request.session['reg_link_token'] = link_token
+                request.session['reg_telegram_pending'] = True
+                return render(request, 'accounts/register.html', _reg_context(
+                    'link_telegram',
+                    username=username,
+                    phone_or_email=phone_or_email,
+                    telegram_username=telegram_service.normalize_telegram_username(phone_or_email),
+                    link_token=link_token,
+                    start_url=telegram_service.start_link_url(link_token),
+                ))
 
-            return render(request, 'accounts/register.html', {
-                'step': 'verify_code',
-                'username': username,
-                'phone_or_email': phone_or_email,
-            })
+            return render(request, 'accounts/register.html', _reg_context(
+                'verify_code',
+                username=username,
+                phone_or_email=phone_or_email,
+                channel=channel,
+                delivered=delivered,
+                code_message=message,
+                bot_username=telegram_service.bot_username(),
+            ))
 
         elif action == 'verify_code':
             entered_code = (request.POST.get('code') or '').strip()
             saved_code = request.session.get('reg_code')
+            attempts = int(request.session.get('reg_attempts') or 0)
 
-            if saved_code and entered_code == saved_code:
+            if not saved_code:
+                return redirect('register')
+
+            # Muddati o'tgan kodni qabul qilmaymiz
+            sent_at = int(request.session.get('reg_code_sent_at') or 0)
+            age = int(timezone.now().timestamp()) - sent_at if sent_at else REG_CODE_TTL + 1
+            if age > REG_CODE_TTL:
+                return render(request, 'accounts/register.html', _reg_context(
+                    'verify_code',
+                    username=request.session.get('reg_username'),
+                    phone_or_email=request.session.get('reg_contact'),
+                    error='Kod muddati tugadi. "Kodni qayta yuborish"ni bosing.',
+                ))
+
+            if attempts >= REG_MAX_ATTEMPTS:
+                return render(request, 'accounts/register.html', _reg_context(
+                    'verify_code',
+                    username=request.session.get('reg_username'),
+                    phone_or_email=request.session.get('reg_contact'),
+                    error='Juda ko\'p noto\'g\'ri urinish. Yangi kod oling.',
+                ))
+
+            if entered_code == saved_code:
                 request.session['register_step'] = 'password_step'
+                request.session['reg_attempts'] = 0
                 return redirect('register_password')
-            else:
-                return render(request, 'accounts/register.html', {
-                    'step': 'verify_code',
-                    'username': request.session.get('reg_username'),
-                    'phone_or_email': request.session.get('reg_contact'),
-                    'error': 'Tasdiqlash kodi xato!',
-                })
 
-    return render(request, 'accounts/register.html', {'step': 'initial'})
+            request.session['reg_attempts'] = attempts + 1
+            return render(request, 'accounts/register.html', _reg_context(
+                'verify_code',
+                username=request.session.get('reg_username'),
+                phone_or_email=request.session.get('reg_contact'),
+                error='Tasdiqlash kodi xato!',
+            ))
+
+        elif action == 'resend_code':
+            contact = request.session.get('reg_contact')
+            channel = request.session.get('reg_channel') or 'phone'
+            if not contact:
+                return redirect('register')
+
+            code = str(random.randint(100000, 999999))
+            request.session['reg_code'] = code
+            request.session['reg_code_sent_at'] = int(timezone.now().timestamp())
+            request.session['reg_attempts'] = 0
+
+            delivered, message = _deliver_reg_code(request, channel, contact, code)
+            return render(request, 'accounts/register.html', _reg_context(
+                'verify_code',
+                username=request.session.get('reg_username'),
+                phone_or_email=contact,
+                channel=channel,
+                delivered=delivered,
+                code_message=message if message != 'telegram_pending' else 'Kod yuborilmadi.',
+                info='Yangi kod yuborildi.' if delivered else None,
+            ))
+
+        elif action == 'check_telegram_link':
+            # `link_telegram` bosqichida: bot `/start`ni qabul qilib chat_id'ni
+            # yozgan bo'lsa — shu yerda aniqlanadi va kod Telegramga ketadi.
+            token = request.session.get('reg_link_token')
+            link = telegram_service.find_link_by_token(token) if token else None
+            if link is None or not link.chat_id:
+                return render(request, 'accounts/register.html', _reg_context(
+                    'link_telegram',
+                    username=request.session.get('reg_username'),
+                    phone_or_email=request.session.get('reg_contact'),
+                    telegram_username=telegram_service.normalize_telegram_username(
+                        request.session.get('reg_contact') or ''),
+                    link_token=token or '',
+                    start_url=telegram_service.start_link_url(token or ''),
+                    error='Telegram hali ulanmadi. Botni ochib "Start"ni bosing va qayta urinib ko\'ring.',
+                ))
+
+            code = request.session.get('reg_code') or str(random.randint(100000, 999999))
+            request.session['reg_code'] = code
+            request.session['reg_code_sent_at'] = int(timezone.now().timestamp())
+            request.session['reg_attempts'] = 0
+            request.session.pop('reg_link_token', None)
+            request.session.pop('reg_telegram_pending', None)
+
+            sent = telegram_service.send_verification_code(link.chat_id, code)
+            return render(request, 'accounts/register.html', _reg_context(
+                'verify_code',
+                username=request.session.get('reg_username'),
+                phone_or_email=link.username or request.session.get('reg_contact'),
+                channel='telegram',
+                delivered=sent,
+                code_message='Tasdiqlash kodi Telegram botga yuborildi.',
+                error=None if sent else 'Kod yuborilmadi. Qayta urinib ko\'ring.',
+            ))
+
+    return render(request, 'accounts/register.html', _reg_context('initial'))
 
 
 def register_password_view(request):
@@ -325,7 +509,24 @@ def register_password_view(request):
             is_verified=True,
         )
 
-        for key in ['reg_username', 'reg_contact', 'reg_code', 'register_step']:
+        # Telegram bog'lanishi: kod `link_telegram` bosqichida tasdiqlangan
+        # bo'lsa yozuv allaqachon chat_id bilan mavjud — uni userga bog'laymiz.
+        link_token = request.session.get('reg_link_token')
+        pending_link = telegram_service.find_link_by_token(link_token) if link_token else None
+        if pending_link is not None and pending_link.chat_id:
+            pending_link.user = user
+            pending_link.is_verified = True
+            pending_link.link_token = ''
+            pending_link.save(update_fields=['user', 'is_verified', 'link_token', 'updated_at'])
+        else:
+            telegram_username = ''
+            if telegram_service.looks_like_telegram(phone_or_email):
+                telegram_username = telegram_service.normalize_telegram_username(phone_or_email)
+            telegram_service.create_link_token(user, telegram_username)
+
+        for key in ['reg_username', 'reg_contact', 'reg_code', 'register_step',
+                    'reg_code_sent_at', 'reg_attempts', 'reg_channel',
+                    'reg_link_token', 'reg_telegram_pending']:
             if key in request.session:
                 del request.session[key]
 
@@ -427,15 +628,31 @@ def forgot_password_view(request):
     if request.method == 'POST':
         contact = (request.POST.get('phone_or_email') or '').strip()
 
-        profile = UserProfile.objects.filter(phone_or_email=contact).first()
-        if profile is None and contact and '@' not in contact:
-            profile = UserProfile.objects.filter(phone_or_email__endswith=_normalize_phone(contact)[-9:]).first()
-        if profile is None and contact and '@' in contact:
-            profile = UserProfile.objects.filter(user__email__iexact=contact).first()
+        user = _find_user_by_contact(contact)
+        profile = UserProfile.objects.filter(user=user).first() if user is not None else None
+        if user is None:
+            profile = UserProfile.objects.filter(phone_or_email=contact).first()
+            if profile is None and contact and '@' not in contact:
+                profile = UserProfile.objects.filter(phone_or_email__endswith=_normalize_phone(contact)[-9:]).first()
 
         if profile is not None:
             user = profile.user
             sent = False
+
+            # 1) Telegram bog'langan bo'lsa — ma'lumotlar to'g'ridan-to'g'ri botga
+            telegram_sent = False
+            link = TelegramUserLink.objects.filter(user=user, chat_id__isnull=False).first()
+            if link is not None and link.chat_id:
+                telegram_sent = telegram_service.send_message(
+                    link.chat_id,
+                    "🔑 <b>Ma'lumotlarni tiklash</b>\n\n"
+                    f"Foydalanuvchi nomi: <code>{user.username}</code>\n"
+                    f"Maxfiy kalit (Device Key): <code>{profile.device_secret_key or '-'}</code>\n\n"
+                    "Iltimos, bu ma'lumotlarni hech kimga bermang.",
+                    parse_mode='HTML',
+                )
+                sent = sent or telegram_sent
+
             if '@' in contact:
                 try:
                     send_mail(

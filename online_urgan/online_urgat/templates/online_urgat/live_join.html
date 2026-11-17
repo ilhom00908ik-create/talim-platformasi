@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="{% static 'live_room.css' %}?v=14">
+    <link rel="stylesheet" href="{% static 'live_room.css' %}?v=15">
     <style>
         /* Zoom uslubi: butun xona foni mutlaqo qora */
         html,
@@ -180,7 +180,7 @@
             <div class="room-controls">
                 <div class="ctrl-group">
                     <button id="toggleMicBtn" type="button" class="ctrl-btn ctrl-btn--on"
-                        title="Mikrofonni yoqish / o'chirish" aria-pressed="true">
+                        title="Mikrofonni yoqish / o'chirish" aria-label="Mikrofon" aria-pressed="true">
                         <span class="ctrl-btn__icon" id="micBtnIcon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                 stroke-linecap="round" stroke-linejoin="round">
@@ -194,7 +194,7 @@
                     </button>
 
                     <button id="toggleCamBtn" type="button" class="ctrl-btn ctrl-btn--on"
-                        title="Kamerani yoqish / o'chirish" aria-pressed="true">
+                        title="Kamerani yoqish / o'chirish" aria-label="Kamera" aria-pressed="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                             stroke-linecap="round" stroke-linejoin="round">
                             <polygon points="23 7 16 12 23 17 23 7" />
@@ -203,7 +203,8 @@
                         <span id="camBtnText">Kamera yoniq</span>
                     </button>
 
-                    <button id="shareScreenBtn" type="button" class="ctrl-btn" hidden title="Ekranni uzatish">
+                    <button id="shareScreenBtn" type="button" class="ctrl-btn" hidden title="Ekranni uzatish"
+                        aria-label="Ekranni uzatish">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                             stroke-linecap="round" stroke-linejoin="round">
                             <rect x="2" y="3" width="20" height="14" rx="2"></rect>
@@ -214,7 +215,7 @@
                     </button>
 
                     <button id="muteAllBtn" type="button" class="ctrl-btn" data-muted="0" hidden
-                        title="Barcha qatnashchilar mikrofonini o'chirish">
+                        title="Barcha qatnashchilar mikrofonini o'chirish" aria-label="Hammasini o'chirish">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                             stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
@@ -226,7 +227,7 @@
                 </div>
                 <div class="ctrl-group">
                     <button id="toggleFullscreenBtn" type="button" class="ctrl-btn ctrl-btn--ghost"
-                        title="To'liq ekran">
+                        title="To'liq ekran" aria-label="To'liq ekran">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                             stroke-linecap="round" stroke-linejoin="round">
                             <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
@@ -236,7 +237,8 @@
                         </svg>
                         <span>To'liq ekran</span>
                     </button>
-                    <button id="leaveRoomBtn" type="button" class="ctrl-btn ctrl-btn--danger">
+                    <button id="leaveRoomBtn" type="button" class="ctrl-btn ctrl-btn--danger"
+                        title="Darsdan chiqish" aria-label="Chiqish">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                             stroke-linecap="round" stroke-linejoin="round">
                             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>

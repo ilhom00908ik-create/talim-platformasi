@@ -36,6 +36,52 @@
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
         }
+
+        /* ----------------------------------------------------------------
+           MOBIL (<= 768px): kartalar ixcham, tugmalar to'liq kenglikda
+           ---------------------------------------------------------------- */
+        @media (max-width: 768px) {
+            html, body { overflow-x: hidden; }
+            .px-4.py-8 { padding-left: 12px !important; padding-right: 12px !important;
+                         padding-top: 20px !important; }
+
+            .rounded-\[30px\],
+            .rounded-\[24px\],
+            .rounded-3xl { border-radius: 16px !important; }
+
+            /* Kartalar ichki bo'shlig'i kichrayadi (faqat `glass` kartalar) */
+            header.glass, .glass.rounded-3xl, .glass-soft.rounded-3xl { padding: 14px !important; }
+            .bg-gray-900.rounded-3xl, .bg-gray-800\/50.rounded-2xl { padding: 13px !important; }
+            .space-y-6 > * + * { margin-top: 14px !important; }
+
+            /* Sarlavha o'lchamlari */
+            .text-3xl { font-size: 1.35rem !important; line-height: 1.25 !important; }
+            .text-2xl { font-size: 1.15rem !important; }
+
+            /* Tugmalar va forma elementlari barmoq uchun qulay */
+            input, select, textarea { font-size: 16px !important; }
+            button[type="submit"],
+            a[class*="rounded-xl"][class*="px-"] {
+                min-height: 44px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .flex.flex-wrap.gap-2 > form,
+            .flex.flex-wrap.gap-2 > a { flex: 1 1 100%; }
+
+            /* Kurs/test kartasidagi tugmalar - to'liq kenglik va qulay balandlik */
+            .bg-gray-800\/50 a[class*="px-"],
+            .bg-gray-800\/50 button,
+            .glass a[class*="px-"][class*="py-"] {
+                width: 100%;
+                min-height: 42px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+            ul, ol { padding-left: 16px; }
+        }
     </style>
 </head>
 <body class="min-h-screen text-slate-100">

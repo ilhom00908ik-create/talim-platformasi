@@ -998,6 +998,7 @@
     :root { --side-w: 296px; }
 }
 
+/* Planshet: yon panel pastga tushadi */
 @media (max-width: 960px) {
     .live-room { overflow: auto; }
     .room-app {
@@ -1016,17 +1017,168 @@
     .stage.screen-mode .pip { left: 10px; top: 52px; }
 }
 
-@media (max-width: 620px) {
-    .room-app { padding: 8px; gap: 8px; }
-    .room-header { flex-wrap: wrap; padding: 8px 10px; }
+/* ==========================================================================
+   TELEFON / MOBIL (<= 768px)
+   --------------------------------------------------------------------------
+   Muammolar va yechimlari:
+   • Tugmalar sig'may, ikki qatorga tushib sahna(pastga surilardi):
+       -> .room-controls endi `grid` — 5 ta tugma bitta qatorda, teng bo'linadi.
+   • Tugma matni sig'masdan kesilardi:
+       -> telefonда faqat ikonka (44px+ `min-height`) — bosish maydoni katta.
+   • Header butun kenglikni egallab, sahna tor qolardi:
+       -> sarlavha bir qatorga (ellipsis), amallar ikonkaga aylanadi.
+   • 2 ustunli grid 375px ekranda juda kichik tile berardi:
+       -> mobil uchun 2 ustun + `aspect-ratio: 4/3` va scroll.
+   ========================================================================== */
+@media (max-width: 768px) {
+    .room-app {
+        padding: 6px;
+        gap: 6px;
+        /* iOS Safari pastki panel ostida qolmasin */
+        padding-bottom: max(6px, env(safe-area-inset-bottom));
+    }
+
+    /* ---------- header ---------- */
+    .room-header {
+        padding: 6px 8px;
+        gap: 8px;
+        border-radius: 12px;
+        flex-wrap: nowrap;
+    }
+    .room-header__title { gap: 8px; flex: 1 1 auto; }
+    .room-header__title h1 { font-size: 13.5px; max-width: 46vw; }
     .room-header__sub { display: none; }
+    .room-header__actions { gap: 6px; }
+
+    /* Header'dagi tugmalar: faqat ikonka, lekin bosish maydoni 40x40 */
+    .room-header__actions .ctrl-btn {
+        padding: 0;
+        width: 40px;
+        height: 40px;
+        justify-content: center;
+        border-radius: 11px;
+    }
     .room-header__actions .ctrl-btn span { display: none; }
-    .ctrl-btn span:not(.ctrl-btn__level) { display: none; }
-    .ctrl-btn { padding: 10px 12px; }
-    .stage { height: 50vh; min-height: 260px; }
+    .room-header__actions .ctrl-btn svg { width: 18px; height: 18px; }
+
+    .pill { padding: 4px 9px; font-size: 10px; }
+    .room-header__actions .pill--count { display: none; }
+
+    /* ---------- sahna ---------- */
+    .stage {
+        height: auto;
+        flex: 1 1 auto;
+        min-height: min(52vh, 420px);
+        max-height: 58vh;
+        border-radius: 14px;
+    }
     .grid-layout { inset: 6px; gap: 6px; }
-    .stage__strip { left: 6px; right: 6px; bottom: 6px; }
+
+    /* Telefonda ustoz PiP kichikroq va teparoqda */
+    .pip {
+        right: 8px;
+        top: 44px;
+        --pip-w: 104px;
+        width: 104px;
+        border-radius: 10px;
+    }
+    .pip.is-maximized { width: 168px; --pip-w: 168px; }
+    .pip .tile__label { font-size: 9.5px; padding: 2px 5px; }
+    .pip .tile__name { max-width: 62px; }
+    .pip .tile__role { display: none; }
+    .pip .tile__toolbar { display: none; }
+
+    .stage.screen-mode .pip { left: 8px; top: 44px; right: auto; }
+
     .stage__topbar { top: 6px; left: 6px; right: 6px; }
-    .chat-form input { font-size: 14px; }
-    .toast-stack { bottom: 84px; }
+    .stage-chip { padding: 4px 9px; font-size: 10.5px; }
+    .stage-chip--screen { max-width: 62vw; }
+
+    /* Ekran rejimidagi qatnashchilar lentasi */
+    .stage__strip { left: 6px; right: 6px; bottom: 6px; }
+    .strip { gap: 6px; padding: 6px; border-radius: 12px; }
+    .strip .tile { flex: 0 0 96px; width: 96px; height: 62px; border-radius: 8px; }
+    .strip .tile__label .tile__name { max-width: 58px; }
+
+    /* ---------- boshqaruv paneli (BUTUNLAY qayta qurildi) ---------- */
+    /* Bitta qator: 6 tugma (chat tugmasi yashirin bo'lishi mumkin) — avtomatik
+       bo'linadi. `auto-fit` bilan 5 ta bo'lsa 5 ga, 6 ta bo'lsa 6 ga taqsimlanadi
+       va hech qachon ikkinchi qatorga tushmaydi. */
+    .room-controls {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(0, 1fr);
+        gap: 5px;
+        padding: 5px;
+        border-radius: 14px;
+    }
+    /* Ikki guruh (.ctrl-group) bitta grid elementi bo'lib qo'shiladi */
+    .room-controls .ctrl-group {
+        display: contents;
+    }
+    .room-controls .ctrl-btn {
+        width: 100%;
+        min-width: 0;
+        height: 48px;          /* barmoq uchun qulay maydon (44px+) */
+        padding: 0;
+        justify-content: center;
+        gap: 0;
+        border-radius: 11px;
+    }
+    .room-controls .ctrl-btn svg { width: 19px; height: 19px; }
+    /* Telefonда matn YASHIRILADI — faqat ikonka. `aria-label`/`title` qoladi. */
+    .room-controls .ctrl-btn > span:not(.ctrl-btn__icon):not(.ctrl-btn__level) {
+        display: none;
+    }
+    .room-controls .ctrl-btn svg { width: 20px; height: 20px; }
+
+    .ctrl-btn__level { height: 2.5px; }
+
+    /* Chiqish tugmasi alohida rang bilan ajralib turmaydi — hammasi bir xil o'lcham */
+    .room-controls .ctrl-btn--danger { background: rgba(220, 38, 38, 0.92); }
+
+    /* ---------- yon panel ---------- */
+    .room-side { gap: 6px; }
+    .side-card { border-radius: 12px; }
+    .side-card--people { max-height: 42vh; }
+    .side-card--chat { height: 300px; }
+
+    .people-row { padding: 7px 8px; gap: 8px; }
+    .people-avatar { width: 30px; height: 30px; font-size: 11px; }
+    .people-name-text { font-size: 12.5px; }
+    .people-actions .tile-btn { width: 34px; height: 34px; }
+
+    .chat-form input { font-size: 16px; } /* iOS avtomatik zoom bo'lmasin */
+    .chat-form .ctrl-btn { min-height: 42px; }
+
+    .media-banner,
+    .audio-hint {
+        margin: 6px 6px 0;
+        padding: 7px 9px;
+        font-size: 11.5px;
+        border-radius: 10px;
+        gap: 7px;
+    }
+    .media-banner .ctrl-btn,
+    .audio-hint .ctrl-btn { padding: 6px 9px; font-size: 11.5px; min-height: 34px; }
+
+    .toast-stack { bottom: 96px; max-width: calc(100vw - 20px); }
+    .toast { font-size: 12px; padding: 8px 12px; }
+}
+
+/* Kichik telefonlar (<= 420px) */
+@media (max-width: 420px) {
+    .room-header__title h1 { max-width: 40vw; font-size: 12.5px; }
+    .pill { padding: 3px 7px; font-size: 9px; letter-spacing: 0.03em; }
+    .room-controls { gap: 5px; }
+    .room-controls .ctrl-btn { min-height: 44px; }
+    .stage { min-height: 46vh; }
+    .pip { --pip-w: 88px; width: 88px; }
+    .strip .tile { flex: 0 0 84px; width: 84px; height: 56px; }
+}
+
+/* Yotgan (landscape) telefon: sahna balandroq bo'lsin */
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 480px) {
+    .stage { min-height: 64vh; max-height: none; }
+    .room-controls .ctrl-btn { min-height: 40px; }
 }

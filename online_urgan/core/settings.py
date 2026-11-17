@@ -114,6 +114,10 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_SAMESITE = 'Lax'
 
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '7122683345:AAEkTMQHuWwDezsq6KPQycGLwsMgK0LjExc')
+# Botning @username'i — ro'yxatdan o'tishda `https://t.me/<username>?start=<token>`
+# deep-link yasash uchun. Bo'sh bo'lsa havola ko'rsatilmaydi (faqat chat_id
+# allaqachon bog'langan foydalanuvchilarga kod yetib boradi).
+TELEGRAM_BOT_USERNAME = os.getenv('TELEGRAM_BOT_USERNAME', '')
 ADMIN_TELEGRAM_ID = os.getenv('ADMIN_TELEGRAM_ID', '7389059494')
 if ADMIN_TELEGRAM_ID:
     try:

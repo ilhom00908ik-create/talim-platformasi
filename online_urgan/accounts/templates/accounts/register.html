@@ -1,47 +1,133 @@
 {% extends 'accounts/base.html' %}{% block title %}Ro'yxatdan o'tish - Online Urgan{% endblock %}
 {% block content %}
-<div class="mx-auto max-w-md py-10">
-    <div class="glass rounded-[30px] p-7 sm:p-8">
-        <div class="mb-6 text-center">
-            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-violet-200">Hisob yaratish</p>
-            <h2 class="mt-3 text-3xl font-black text-white">Ro'yxatdan o'tish</h2>
+<div class="mx-auto w-full max-w-md py-6 sm:py-10">
+    <div class="glass rounded-[26px] p-5 sm:rounded-[30px] sm:p-8">
+        <div class="mb-5 text-center sm:mb-6">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-200 sm:text-xs">Hisob yaratish</p>
+            <h2 class="mt-2 text-2xl font-black text-white sm:mt-3 sm:text-3xl">Ro'yxatdan o'tish</h2>
         </div>
 {% if error %}
-            <div class="mb-4 rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">{{ error }}</div>{% endif %}
+        <div class="mb-4 rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">{{ error }}</div>{% endif %}
+{% if info %}
+        <div class="mb-4 rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100">{{ info }}</div>{% endif %}
 
-        <form method="POST" class="space-y-4">{% csrf_token %}
 {% if step == 'initial' %}
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-slate-200">Foydalanuvchi nomi (Ism)</label>
-                    <input type="text" name="username" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400/80" placeholder="Masalan: ilhom" required>
-                </div>
+        <form method="POST" class="space-y-4">{% csrf_token %}
+            <div>
+                <label for="regUsername" class="mb-2 block text-sm font-medium text-slate-200">Foydalanuvchi nomi (Ism)</label>
+                <input id="regUsername" type="text" name="username" value="{{ username|default:'' }}"
+                    autocomplete="username" autocapitalize="none" spellcheck="false"
+                    class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-base text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400/80"
+                    placeholder="Masalan: ilhom" required>
+            </div>
 
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-slate-200">Email yoki Telefon raqam</label>
-                    <div class="flex gap-2">
-                        <input type="text" name="phone_or_email" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400/80" placeholder="example@gmail.com yoki +998901234567" required>
-                        <button type="submit" name="action" value="send_code" class="rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 px-4 py-2.5 font-semibold text-white shadow-lg shadow-violet-500/20">Verify</button>
-                    </div>
-                    <p class="mt-2 text-xs text-slate-400">Verify tugmasini bosganingizda kod yuboriladi.</p>
-                </div>
-{% elif step == 'verify_code' %}
-                <input type="hidden" name="username" value="{{ username }}">
-                <input type="hidden" name="phone_or_email" value="{{ phone_or_email }}">
+            <div>
+                <label for="regContact" class="mb-2 block text-sm font-medium text-slate-200">
+                    Email, telefon raqam yoki Telegram username
+                </label>
+                <input id="regContact" type="text" name="phone_or_email" value="{{ phone_or_email|default:'' }}"
+                    autocomplete="username" autocapitalize="none" spellcheck="false"
+                    class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-base text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400/80"
+                    placeholder="example@gmail.com · +998901234567 · @username" required>
 
-                <div class="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
-                    <b>{{ phone_or_email }}</b> manziliga tasdiqlash kodi yuborildi. (Terminalni tekshiring)
+                <div class="mt-2 flex flex-wrap gap-2 text-[11px] sm:text-xs">
+                    <span class="inline-flex items-center gap-1 rounded-full border border-sky-400/30 bg-sky-500/10 px-2 py-1 text-sky-100">
+                        ✈️ Telegram — kod botga boradi
+                    </span>
+                    <span class="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-slate-300">
+                        ✉️ Email
+                    </span>
+                    <span class="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1 text-slate-300">
+                        ☎️ Telefon
+                    </span>
                 </div>
+            </div>
 
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-slate-200">Tasdiqlash kodini kiriting</label>
-                    <input type="text" name="code" class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-center text-2xl tracking-[0.4em] text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400/80" placeholder="----" required maxlength="4">
-                </div>
-
-                <button type="submit" name="action" value="verify_code" class="w-full rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-4 py-3 font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:opacity-95">Tasdiqlash</button>{% endif %}
+            <button type="submit" name="action" value="send_code"
+                class="w-full rounded-2xl bg-gradient-to-r from-violet-500 to-cyan-500 px-4 py-3.5 text-base font-bold text-white shadow-lg shadow-violet-500/20 transition hover:opacity-95 active:scale-[0.99]">
+                Kodni yuborish
+            </button>
         </form>
 
+{% elif step == 'link_telegram' %}
+        <div class="space-y-4">
+            <div class="rounded-xl border border-sky-400/30 bg-sky-500/10 px-3 py-3 text-sm text-sky-100">
+                <b>@{{ telegram_username }}</b> Telegram orqali tasdiqlash uchun botni bir marta ishga tushiring.
+                Kod to'g'ridan-to'g'ri botga yuboriladi.
+            </div>
+
+            {% if start_url %}
+            <a href="{{ start_url }}" target="_blank" rel="noopener"
+                class="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-cyan-500 px-4 py-3.5 text-base font-bold text-white shadow-lg shadow-sky-500/25 transition hover:opacity-95 active:scale-[0.99]">
+                <span aria-hidden="true">✈️</span> Telegram botni ochish
+            </a>
+            <p class="break-all text-center text-[11px] text-slate-400">{{ start_url }}</p>
+            {% else %}
+            <div class="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+                Bot username'i sozlanmagan. Email yoki telefon raqamdan foydalaning.
+            </div>
+            {% endif %}
+
+            <form method="POST">{% csrf_token %}
+                <button type="submit" name="action" value="check_telegram_link"
+                    class="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-3.5 text-base font-bold text-white transition hover:bg-white/10 active:scale-[0.99]">
+                    Botni ishga tushirdim — davom etish
+                </button>
+            </form>
+
+            <a href="{% url 'register' %}" class="block text-center text-sm text-slate-300 hover:text-white">
+                ← Boshqa usulni tanlash
+            </a>
+        </div>
+
+{% elif step == 'verify_code' %}
+        <form method="POST" class="space-y-4">{% csrf_token %}
+            <input type="hidden" name="username" value="{{ username }}">
+            <input type="hidden" name="phone_or_email" value="{{ phone_or_email }}">
+
+            <div class="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-100">
+                {% if channel == 'telegram' %}
+                <span class="mr-1" aria-hidden="true">✈️</span> <b>Tasdiqlash kodi Telegram botga yuborildi.</b>
+                {% elif delivered %}
+                <b>{{ phone_or_email }}</b> manziliga tasdiqlash kodi yuborildi.
+                {% else %}
+                <b>{{ phone_or_email }}</b> uchun kod yuborilmadi.
+                {% endif %}
+                {% if code_message %}<div class="mt-1 text-xs text-emerald-200/80">{{ code_message }}</div>{% endif %}
+                <div class="mt-1 text-xs text-emerald-200/80">Kod 10 daqiqa amal qiladi.</div>
+            </div>
+
+            <div>
+                <label for="regCode" class="mb-2 block text-sm font-medium text-slate-200">Tasdiqlash kodini kiriting</label>
+                <input id="regCode" type="text" name="code" inputmode="numeric" autocomplete="one-time-code"
+                    pattern="[0-9]*" maxlength="6"
+                    class="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-center text-2xl tracking-[0.35em] text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-400/80 sm:text-3xl sm:tracking-[0.5em]"
+                    placeholder="------" required>
+            </div>
+
+            <button type="submit" name="action" value="verify_code"
+                class="w-full rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-4 py-3.5 text-base font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:opacity-95 active:scale-[0.99]">
+                Tasdiqlash
+            </button>
+
+            <div class="flex flex-col gap-2 sm:flex-row sm:gap-3">
+                <button type="submit" name="action" value="resend_code"
+                    class="w-full rounded-2xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 active:scale-[0.99]">
+                    Kodni qayta yuborish
+                </button>
+                <a href="{% url 'register' %}"
+                    class="flex w-full items-center justify-center rounded-2xl border border-white/10 bg-transparent px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-white/5">
+                    Bekor qilish
+                </a>
+            </div>
+        </form>
+{% endif %}
+
         <div class="mt-5 text-center text-sm text-slate-300">
-            <a href="{% url 'login' %}" class="text-cyan-200 hover:text-cyan-100">Akkauntingiz bormi? Kirish</a>
+            <a href="{% url 'login' %}"
+                class="inline-flex min-h-[44px] items-center justify-center px-2 text-cyan-200 hover:text-cyan-100">
+                Akkauntingiz bormi? Kirish
+            </a>
         </div>
     </div>
 </div>{% endblock %}
